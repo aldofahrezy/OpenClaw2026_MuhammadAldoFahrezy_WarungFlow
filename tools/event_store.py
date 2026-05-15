@@ -18,12 +18,13 @@ def _now_iso() -> str:
 
 
 def _path(name: str) -> Path:
-    p = Path(
-        __import__("os").environ.get("RUNTIME_EVENT_STORE", str(RUNTIME_DIR / name))
-    )
-    if p.suffix != ".jsonl":
-        return p if p.suffix else RUNTIME_DIR / name
-    return p
+    """Resolve runtime JSONL path. RUNTIME_EVENT_STORE only overrides events.jsonl."""
+    if name == "events.jsonl":
+        override = (__import__("os").environ.get("RUNTIME_EVENT_STORE") or "").strip()
+        if override:
+            p = Path(override)
+            return p if p.suffix == ".jsonl" else RUNTIME_DIR / "events.jsonl"
+    return RUNTIME_DIR / name
 
 
 def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
