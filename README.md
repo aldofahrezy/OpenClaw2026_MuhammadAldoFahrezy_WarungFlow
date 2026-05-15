@@ -49,9 +49,23 @@ Detailed step-by-step flows for both payment modes:
 ### Quick path — Mock mode (~8 min, no API keys)
 
 ```bash
-cp .env.example .env
+```bash
+git clone https://github.com/aldofahrezy/Warung-Flow.git
+cd Warung-Flow
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env    # mock mode works without API keys
 python smoke_test.py -v
 streamlit run app.py
+```
+
+Open http://localhost:8501 — sample **Warung Bu Sari** data loads and the first agent run starts automatically.
+
+**Optional bot server** (separate terminal):
+
+```bash
+uvicorn bot_server:app --host 0.0.0.0 --port 8000
 ```
 
 1. Open http://localhost:8501 — first agent run starts automatically.
