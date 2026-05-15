@@ -14,6 +14,7 @@ os.environ.setdefault("PAYMENT_MODE", "mock")
 
 from agents.orchestrator import run_agent
 from config import RuntimeConfig
+from session_runtime import stable_hash
 from tools.export_utils import OUTPUT_DIR, ROOT
 from tools.parsers import parse_orders_batch
 
@@ -62,6 +63,15 @@ def main() -> None:
         assert p.is_file(), f"missing output {p}"
 
     assert len(state.execution_trace) >= 8, "execution trace should show >= 8 tool calls"
+
+    run_ids = {t.run_id for t in state.execution_trace}
+    assert run_ids, "execution trace should include run_id"
+    assert all(isinstance(rid, int) and rid >= 1 for rid in run_ids)
+
+    h1 = stable_hash({"a": 1, "b": [2, 3]})
+    h2 = stable_hash({"b": [2, 3], "a": 1})
+    assert h1 == h2, "stable_hash must be order-independent"
+    assert stable_hash({"a": 1}) != stable_hash({"a": 2}), "stable_hash must detect changes"
 
     if args.verbose:
         print("smoke_test: OK", file=sys.stdout)

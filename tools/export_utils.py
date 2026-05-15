@@ -22,7 +22,12 @@ def export_all(state: "AgentState") -> dict[str, str]:
     paths: dict[str, str] = {}
 
     dr = OUTPUT_DIR / "daily_report.md"
-    dr.write_text(state.daily_report or "", encoding="utf-8")
+    header = (
+        f"<!-- run_id={state.current_run_id} "
+        f"trigger={state.trigger_reason} "
+        f"generated={state.latest_run_at} -->\n\n"
+    )
+    dr.write_text(header + (state.daily_report or ""), encoding="utf-8")
     paths["daily_report.md"] = str(dr)
 
     pr = OUTPUT_DIR / "payment_reminders.md"
@@ -67,6 +72,7 @@ def export_all(state: "AgentState") -> dict[str, str]:
         w = csv.DictWriter(
             f,
             fieldnames=[
+                "run_id",
                 "step_number",
                 "agent_decision",
                 "tool_called",
@@ -80,6 +86,7 @@ def export_all(state: "AgentState") -> dict[str, str]:
         for step in state.execution_trace:
             w.writerow(
                 {
+                    "run_id": step.run_id,
                     "step_number": step.step_number,
                     "agent_decision": step.agent_decision,
                     "tool_called": step.tool_called,

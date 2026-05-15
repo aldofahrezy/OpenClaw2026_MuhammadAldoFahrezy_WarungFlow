@@ -1,6 +1,50 @@
 # Deploy WarungFlow (live demo link for Devpost)
 
-**Recommended:** [Streamlit Community Cloud](https://share.streamlit.io) — free, built for this stack.
+## Option A — This VPS (Sumopod / SSH) — already works
+
+WarungFlow can run directly on your VPS with Streamlit bound to all interfaces.
+
+### Quick start (manual)
+
+```bash
+cd /root/agenthon
+source .venv/bin/activate
+export WARUNGFLOW_ENV=production PAYMENT_MODE=mock LLM_MODE=mock
+streamlit run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+```
+
+Or: `./deploy/start.sh`
+
+### Live URL (this server)
+
+**http://43.157.208.68:8501**
+
+Paste that in Devpost **Live Deployment Link**. Ensure your cloud firewall / security group allows **TCP 8501**.
+
+### Keep running after logout (systemd)
+
+```bash
+# Stop any manual streamlit on 8501 first, then:
+sudo cp /root/agenthon/deploy/warungflow.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now warungflow
+sudo systemctl status warungflow
+```
+
+Logs: `journalctl -u warungflow -f`
+
+### Background without systemd
+
+```bash
+cd /root/agenthon
+nohup ./deploy/start.sh > /tmp/warungflow.log 2>&1 &
+```
+
+---
+
+## Option B — Streamlit Community Cloud
+
+**Recommended if you do not want to manage a VPS port.**
 
 ## Prerequisites
 

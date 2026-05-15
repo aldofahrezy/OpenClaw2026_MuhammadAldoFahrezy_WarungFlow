@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from tools.llm_client import refine_financing_narrative, refine_payment_reminder
+
 
 def generate_daily_report(
     merchant: dict[str, Any],
@@ -61,7 +63,9 @@ def generate_reminders(
                 "Mohon konfirmasi jika sudah transfer. Terima kasih."
             )
             if llm_mode == "live":
-                template += " [LLM could refine wording]"
+                template = refine_payment_reminder(
+                    str(name), oid, amt, paid, template
+                )
             out.append({"order_id": oid, "channel": "whatsapp", "text": template})
     return out
 
@@ -77,5 +81,5 @@ def generate_financing_readiness(
     if validation.get("ok") is False:
         narrative += " Perhatian: laporan memerlukan review sebelum diajukan."
     if llm_mode == "live":
-        narrative += " Narasi dapat diperkaya oleh LLM."
+        narrative = refine_financing_narrative(narrative, score)
     return {"score": score, "narrative": narrative}

@@ -94,7 +94,9 @@ Click **Run WarungFlow Agent** once. The orchestrator autonomously loads sample 
 
 ## Live deployment (Devpost bonus)
 
-Deploy free on **Streamlit Community Cloud** — step-by-step in **[DEPLOY.md](DEPLOY.md)**.
+**VPS (this server):** http://43.157.208.68:8501 — see `deploy/start.sh` and **[DEPLOY.md](DEPLOY.md)**.
+
+**Streamlit Cloud:** step-by-step in **[DEPLOY.md](DEPLOY.md)**.
 
 1. Push `main` to https://github.com/aldofahrezy/Warung-Flow  
 2. https://share.streamlit.io → Create app → `app.py`  

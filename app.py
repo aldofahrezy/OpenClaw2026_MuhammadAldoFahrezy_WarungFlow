@@ -1,5 +1,6 @@
 """
 WarungFlow — dashboard UI aligned to the Tailwind reference (Plus Jakarta Sans, Material Symbols, M3-style tokens).
+Reactive agent: auto-load sample data, auto-run on first open, refresh on input hash change.
 """
 
 from __future__ import annotations
@@ -15,18 +16,35 @@ import streamlit as st
 logging.getLogger("streamlit").setLevel(logging.WARNING)
 logging.getLogger("streamlit.watcher").setLevel(logging.ERROR)
 
-from agents.orchestrator import decide_next_action, run_agent_stream
-from state import AgentState
+from agents.orchestrator import decide_next_action
 from config import RuntimeConfig
 from dashboard import (
     EXPORT_LABELS,
     dashboard_css,
     dashboard_font_links,
-    mock_mode_banner_html,
     reconciliation_rows_from_state,
     reconciliation_table_html,
     stat_cards_html,
+    system_status_banner_html,
     trace_timeline_html,
+)
+from dashboard_reports import render_reports_analytics
+from live_sandbox import (
+    add_matching_payment_demo,
+    add_partial_payment_demo,
+    add_unpaid_order_demo,
+    append_payment_transaction,
+    append_whatsapp_order,
+    simulate_doku_payment_success,
+)
+from session_runtime import (
+    get_agent_state,
+    init_session_defaults,
+    load_sample_data_into_session,
+    mark_data_changed,
+    process_pending_agent_run,
+    reset_demo_session,
+    schedule_initial_run,
 )
 
 st.set_page_config(
@@ -48,23 +66,21 @@ def _inject_assets() -> None:
     )
 
 
-# --- session ---
-if "state" not in st.session_state:
-    st.session_state.state = None
-if "run_token" not in st.session_state:
-    st.session_state.run_token = 0
-if "ui_nav" not in st.session_state:
-    st.session_state.ui_nav = "dashboard"
-if "payment_mode_choice" not in st.session_state:
-    st.session_state.payment_mode_choice = (
-        os.getenv("PAYMENT_MODE", "mock").strip().lower() or "mock"
-    )
-prod_ui = _is_production_ui()
-state = st.session_state.state
+init_session_defaults()
+load_sample_data_into_session()
+schedule_initial_run()
 
+if "_bootstrapped" not in st.session_state or not st.session_state._bootstrapped:
+    st.session_state._bootstrapped = True
+    st.session_state._last_payment_mode_choice = st.session_state.payment_mode_choice
+
+prod_ui = _is_production_ui()
 _inject_assets()
 
-# ----- Sidebar (matches reference left rail) -----
+cfg = RuntimeConfig.load()
+os.environ["PAYMENT_MODE"] = st.session_state.payment_mode_choice
+
+# ----- Sidebar -----
 with st.sidebar:
     st.markdown(
         """
@@ -80,37 +96,35 @@ with st.sidebar:
     )
 
     nav = st.session_state.ui_nav
-    if st.button(
-        "Dashboard",
-        key="nav_dashboard",
-        use_container_width=True,
-        type="primary" if nav == "dashboard" else "secondary",
+    for key, label in (
+        ("dashboard", "Dashboard"),
+        ("trace", "Agent Trace"),
+        ("reconciliation", "Reconciliation"),
+        ("reports", "Reports"),
     ):
-        st.session_state.ui_nav = "dashboard"
+        if st.button(
+            label,
+            key=f"nav_{key}",
+            use_container_width=True,
+            type="primary" if nav == key else "secondary",
+        ):
+            st.session_state.ui_nav = key
+            st.rerun()
+
+    st.markdown("---")
+    st.session_state.auto_refresh_enabled = st.toggle(
+        "Auto-refresh on data change",
+        value=bool(st.session_state.get("auto_refresh_enabled", True)),
+        key="wf_auto_refresh",
+    )
+    if st.button("Force Refresh Analysis", use_container_width=True, key="wf_force_refresh"):
+        st.session_state._pending_agent_run = True
+        st.session_state._pending_trigger = "manual_refresh"
+        st.session_state.ui_status = "Auto-refreshing"
+        st.session_state.ui_status_detail = "Manual refresh"
         st.rerun()
-    if st.button(
-        "Agent Trace",
-        key="nav_trace",
-        use_container_width=True,
-        type="primary" if nav == "trace" else "secondary",
-    ):
-        st.session_state.ui_nav = "trace"
-        st.rerun()
-    if st.button(
-        "Reconciliation",
-        key="nav_reco",
-        use_container_width=True,
-        type="primary" if nav == "reconciliation" else "secondary",
-    ):
-        st.session_state.ui_nav = "reconciliation"
-        st.rerun()
-    if st.button(
-        "Reports",
-        key="nav_reports",
-        use_container_width=True,
-        type="primary" if nav == "reports" else "secondary",
-    ):
-        st.session_state.ui_nav = "reports"
+    if st.button("Reset Demo", use_container_width=True, key="wf_reset_demo"):
+        reset_demo_session()
         st.rerun()
 
     st.markdown('<div class="wf-help-btn-wrap">', unsafe_allow_html=True)
@@ -124,18 +138,23 @@ color:#006b47;font-size:0.75rem;font-weight:600;">Help Center</a>
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
+    agent_preview = get_agent_state()
     with st.expander("Merchant Profile", expanded=False):
-        if state and state.merchant_profile:
-            p = state.merchant_profile
-            st.markdown(f"**Store:** {p.get('merchant_name', 'N/A')}")
-            st.markdown(f"**Owner:** {p.get('owner_name', 'N/A')}")
-            st.markdown(f"**Location:** {p.get('city', 'N/A')}")
-            st.markdown(f"**Category:** {p.get('business_type', 'N/A')}")
-            methods = ', '.join(p.get('payment_methods', []))
+        profile = None
+        if agent_preview and agent_preview.merchant_profile:
+            profile = agent_preview.merchant_profile
+        elif st.session_state.merchant_profile:
+            profile = st.session_state.merchant_profile
+        if profile:
+            st.markdown(f"**Store:** {profile.get('merchant_name', 'N/A')}")
+            st.markdown(f"**Owner:** {profile.get('owner_name', 'N/A')}")
+            st.markdown(f"**Location:** {profile.get('city', 'N/A')}")
+            st.markdown(f"**Category:** {profile.get('business_type', 'N/A')}")
+            methods = ", ".join(profile.get("payment_methods", []))
             st.markdown(f"**Payments:** {methods}")
-            st.markdown(f"**Goal:** {p.get('financing_goal', 'N/A')}")
+            st.markdown(f"**Goal:** {profile.get('financing_goal', 'N/A')}")
         else:
-            st.caption("Run the agent to load `data/merchant_profile.json`.")
+            st.caption("Sample data loads automatically on first open.")
 
     st.markdown("**Payment mode**")
     pay_choice = st.selectbox(
@@ -146,8 +165,14 @@ color:#006b47;font-size:0.75rem;font-weight:600;">Help Center</a>
         label_visibility="collapsed",
         key="wf_payment_mode_select",
     )
+    prev_pay = st.session_state.get("_last_payment_mode_choice")
     st.session_state.payment_mode_choice = pay_choice
     os.environ["PAYMENT_MODE"] = pay_choice
+    if prev_pay is not None and pay_choice != prev_pay:
+        st.session_state._last_payment_mode_choice = pay_choice
+        mark_data_changed("payment_mode_change")
+    else:
+        st.session_state._last_payment_mode_choice = pay_choice
 
     cfg = RuntimeConfig.load()
     if prod_ui:
@@ -162,12 +187,94 @@ color:#006b47;font-size:0.75rem;font-weight:600;">Help Center</a>
                 for w in cfg.warnings:
                     st.warning(w)
 
+    with st.expander("Live Data Sandbox", expanded=False):
+        st.caption("Add data — agent re-runs when auto-refresh is on.")
+        wa_msg = st.text_area(
+            "WhatsApp order",
+            placeholder="Mbak, nasi goreng 2 total 44000, bayar nanti malam - Kevin",
+            height=72,
+            key="sandbox_wa_order",
+        )
+        if st.button("Add order", key="sandbox_add_order", use_container_width=True):
+            if append_whatsapp_order(wa_msg):
+                st.success("Order added.")
+            else:
+                st.warning("Empty or duplicate order.")
+            st.rerun()
+
+        c1, c2 = st.columns(2)
+        with c1:
+            pay_name = st.text_input("Payer", value="Kevin", key="sandbox_payer")
+            pay_amt = st.number_input(
+                "Amount (IDR)", min_value=0, value=44000, step=1000, key="sandbox_amt"
+            )
+        with c2:
+            pay_method = st.selectbox(
+                "Method", ["QRIS", "transfer", "cash"], key="sandbox_method"
+            )
+            pay_ref = st.text_input(
+                "Reference", value="nasi goreng Kevin", key="sandbox_ref"
+            )
+        if st.button("Add payment", key="sandbox_add_pay", use_container_width=True):
+            if append_payment_transaction(
+                pay_name, int(pay_amt), pay_method, pay_ref
+            ):
+                st.success("Payment added.")
+            else:
+                st.warning("Duplicate payment skipped.")
+            st.rerun()
+
+        st.markdown("**Quick demo**")
+        if st.button("Kevin unpaid order", key="demo_kevin_order", use_container_width=True):
+            add_unpaid_order_demo()
+            st.rerun()
+        if st.button("Kevin matching payment", key="demo_kevin_pay", use_container_width=True):
+            add_matching_payment_demo()
+            st.rerun()
+        if st.button("Partial payment", key="demo_partial", use_container_width=True):
+            add_partial_payment_demo()
+            st.rerun()
+        if st.button("Simulate DOKU webhook", key="demo_webhook", use_container_width=True):
+            result = simulate_doku_payment_success()
+            st.caption(result)
+            st.rerun()
+
 cfg = RuntimeConfig.load()
+
+# Reactive agent run (initial load, data change, manual refresh)
+if st.session_state.get("_pending_agent_run"):
+    trigger = str(st.session_state.get("_pending_trigger") or "refresh")
+
+    def _on_step(step: object) -> None:
+        icon = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(getattr(step, "status", ""), "•")
+        st.write(
+            f"{icon} **Run {getattr(step, 'run_id', '?')} · Step {getattr(step, 'step_number', '?')}** · "
+            f"`{getattr(step, 'tool_called', '')}` — {getattr(step, 'output_summary', '')}"
+        )
+
+    with st.status(f"WarungFlow analyzing · {trigger}", expanded=True) as agent_status:
+        ran = process_pending_agent_run(cfg, on_step=_on_step)
+        if ran:
+            final = get_agent_state()
+            run_id = int(st.session_state.get("run_id") or 0)
+            label = (final.final_status if final else None) or "COMPLETE"
+            agent_status.update(label=f"Run {run_id} complete · {label}", state="complete")
+
+state = get_agent_state()
+ui_status = str(st.session_state.get("ui_status") or "Fresh")
+ui_detail = str(st.session_state.get("ui_status_detail") or "")
+data_stale = bool(st.session_state.get("data_stale"))
+
 h_left, h_mid, h_right = st.columns([2, 2, 2])
 with h_left:
     st.markdown('<p class="wf-top-title">WarungFlow</p>', unsafe_allow_html=True)
 with h_mid:
-    status_label = "Active" if state else "Idle"
+    if st.session_state.get("_pending_agent_run"):
+        status_label = "Running"
+    elif state:
+        status_label = state.final_status or "Active"
+    else:
+        status_label = ui_status
     st.markdown(
         f"""
 <div class="wf-pill"><span class="wf-pill-dot"></span>
@@ -176,35 +283,8 @@ with h_mid:
         unsafe_allow_html=True,
     )
 with h_right:
-    run = st.button(
-        "Run WarungFlow Agent",
-        type="primary",
-        use_container_width=True,
-        key="wf_run_agent",
-    )
-    if run:
-        seed = AgentState(payment_mode=cfg.payment_mode, llm_mode=cfg.llm_mode)
-        final_state: AgentState | None = None
-        with st.status("🧠 Agent Orchestrator Booting...", expanded=True) as agent_status:
-            for snapshot in run_agent_stream(cfg, seed):
-                final_state = snapshot
-                if snapshot.execution_trace:
-                    step = snapshot.execution_trace[-1]
-                    icon = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(step.status, "•")
-                    st.write(
-                        f"{icon} **Step {step.step_number}** · `{step.tool_called}` — "
-                        f"{step.output_summary}"
-                    )
-            if final_state is not None:
-                label = final_state.final_status or "COMPLETE"
-                agent_status.update(
-                    label=f"Agent run complete · {label}",
-                    state="complete",
-                )
-        if final_state is not None:
-            st.session_state.state = final_state
-            st.session_state.run_token += 1
-        st.rerun()
+    run_n = int(st.session_state.get("run_id") or 0)
+    st.caption(f"Run #{run_n}" if run_n else "Run pending")
 
 st.markdown(
     """
@@ -220,44 +300,48 @@ if cfg.warnings:
     for w in cfg.warnings:
         st.warning(w, icon="⚠️")
 
-# ----- Dashboard body -----
 if cfg.warungflow_env == "production":
     st.info(
         "Live demo · OpenClaw2026_MuhammadAldoFahrezy — "
-        "mock mode (no API keys). Click **Run WarungFlow Agent** to start.",
+        "sample data loads and analysis runs automatically.",
         icon="🌐",
     )
-st.markdown(mock_mode_banner_html(cfg), unsafe_allow_html=True)
+
+st.markdown(
+    system_status_banner_html(
+        cfg, state, ui_status=ui_status, ui_detail=ui_detail, data_stale=data_stale
+    ),
+    unsafe_allow_html=True,
+)
+
+if data_stale and not st.session_state.get("_pending_agent_run"):
+    st.warning(
+        "Input data changed with auto-refresh off. Use **Force Refresh Analysis** in the sidebar.",
+        icon="🔄",
+    )
 
 if state is None:
     st.markdown(
         stat_cards_html(health_score=0, collection_rate=0.0),
         unsafe_allow_html=True,
     )
-    st.markdown(
-        """
+    empty_grid = f"""
 <div class="wf-main-grid">
-<div class="wf-panel">
-  <div class="wf-panel-head"><h3 class="wf-panel-title">Payment Reconciliation</h3></div>
-"""
-        + reconciliation_table_html([])
-        + """</div>
-<div class="wf-panel">
-  <div class="wf-panel-head"><h3 class="wf-panel-title">Agent Execution Trace</h3></div>
-"""
-        + trace_timeline_html([])
-        + """</div>
+  <div class="wf-panel">
+    <div class="wf-panel-head"><h3 class="wf-panel-title">Payment Reconciliation</h3></div>
+    {reconciliation_table_html([])}
+  </div>
+  <div class="wf-panel">
+    <div class="wf-panel-head"><h3 class="wf-panel-title">Agent Execution Trace</h3></div>
+    {trace_timeline_html([])}
+  </div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
-    st.info(
-        "Click **Run WarungFlow Agent** in the header to execute the autonomous "
-        "workflow and populate this dashboard."
-    )
+"""
+    st.markdown(empty_grid, unsafe_allow_html=True)
+    if not st.session_state.get("has_run") and not st.session_state.get("_pending_agent_run"):
+        st.info("Starting autonomous analysis with sample Warung Bu Sari data…")
     st.stop()
 
-# Errors
 if state.errors:
     st.error("Some steps completed with warnings — review before trusting exports.")
     for err in state.errors[:10]:
@@ -344,6 +428,7 @@ elif nav == "trace":
     df_trace = pd.DataFrame(
         [
             {
+                "Run": t.run_id,
                 "Step": t.step_number,
                 "Decision": t.agent_decision,
                 "Tool": t.tool_called,
@@ -376,45 +461,4 @@ elif nav == "reconciliation":
             st.success("No payment issues flagged.")
 
 elif nav == "reports":
-    fr = state.financing_readiness or {}
-    st.markdown("### Financing readiness")
-    st.markdown(fr.get("narrative") or "_—_")
-    st.markdown("### Daily report")
-    st.markdown(state.daily_report or "_—_")
-    st.markdown("### Validation")
-    val = state.validation_report or {}
-    if val:
-        ok = val.get("ok", False)
-        status = "✅ Passed" if ok else "❌ Failed"
-        st.markdown(f"**Overall Status:** {status}")
-        for check in val.get("checks", []):
-            icon = "✅" if check.get("passed") else "❌"
-            name = str(check.get('check', '')).replace('_', ' ').title()
-            st.markdown(f"- {icon} {name}")
-    else:
-        st.caption("No validation data available.")
-    st.markdown("### Downloads")
-    paths = state.exported_files or {}
-    if not paths:
-        st.info("No exports.")
-    else:
-        n = 0
-        for label in sorted(paths.keys()):
-            path = Path(paths[label])
-            if not path.is_file():
-                continue
-            mime = (
-                "text/csv"
-                if label.endswith(".csv")
-                else "text/markdown"
-                if label.endswith(".md")
-                else "application/octet-stream"
-            )
-            st.download_button(
-                label=f"Download {label}",
-                data=path.read_bytes(),
-                file_name=label,
-                mime=mime,
-                key=f"rpt-{label}-{st.session_state.run_token}",
-            )
-            n += 1
+    render_reports_analytics(state)

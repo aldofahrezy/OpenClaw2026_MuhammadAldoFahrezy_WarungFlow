@@ -125,6 +125,7 @@ class RuntimeConfig:
             f"PAYMENT_MODE={self.payment_mode}",
             f"WARUNGFLOW_ENV={self.warungflow_env}",
             mask_secret("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY")),
+            mask_secret("GROQ_API_KEY", os.getenv("GROQ_API_KEY")),
             mask_secret("DOKU_CLIENT_ID", os.getenv("DOKU_CLIENT_ID")),
             mask_secret("DOKU_SECRET_KEY", os.getenv("DOKU_SECRET_KEY")),
         ]

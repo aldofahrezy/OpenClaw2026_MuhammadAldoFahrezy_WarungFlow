@@ -39,10 +39,15 @@ def _has_unpaid(state: AgentState) -> bool:
 def _append_unpaid_payment_requests(
     state: AgentState, prov: Any, provider_box: list[Any]
 ) -> None:
+    if state.payment_requests is None:
+        state.payment_requests = []
     for r in state.reconciliation_results or []:
         if r.get("status") not in {"UNPAID", "PARTIALLY_PAID"}:
             continue
         oid = str(r.get("order_id"))
+        if oid in state.payment_requests_by_order:
+            state.payment_requests.append(state.payment_requests_by_order[oid])
+            continue
         order = next(
             (o for o in (state.parsed_orders or []) if str(o.get("order_id")) == oid),
             None,
@@ -54,10 +59,19 @@ def _append_unpaid_payment_requests(
         if remaining <= 0:
             continue
         pr = prov.create_payment_request(oid, remaining, f"Bill {oid}")
+        state.payment_requests_by_order[oid] = pr
         state.payment_requests.append(pr)
 
 
 def tool_load_merchant_profile(state: AgentState, provider_box: list[Any]) -> None:
+    if state.merchant_profile:
+        state.trace(
+            decision="Merchant context present; use session profile.",
+            tool="LOAD_MERCHANT_PROFILE",
+            input_summary="session",
+            output_summary=f"keys={list(state.merchant_profile.keys())}",
+        )
+        return
     path = DATA_DIR / "merchant_profile.json"
     with open(path, encoding="utf-8") as f:
         state.merchant_profile = json.load(f)
@@ -70,6 +84,14 @@ def tool_load_merchant_profile(state: AgentState, provider_box: list[Any]) -> No
 
 
 def tool_load_orders(state: AgentState, provider_box: list[Any]) -> None:
+    if state.raw_orders is not None:
+        state.trace(
+            decision="Raw orders present; use session WhatsApp lines.",
+            tool="LOAD_ORDERS",
+            input_summary="session",
+            output_summary=f"lines={len(state.raw_orders)}",
+        )
+        return
     path = DATA_DIR / "sample_orders_whatsapp.txt"
     raw = path.read_text(encoding="utf-8").splitlines()
     state.raw_orders = [ln for ln in raw if ln.strip()]
@@ -111,6 +133,14 @@ def tool_estimate_or_flag_unknown_amounts(
 
 
 def tool_load_payments(state: AgentState, provider_box: list[Any]) -> None:
+    if state.payment_transactions is not None:
+        state.trace(
+            decision="Payments present; use session transaction pool.",
+            tool="LOAD_PAYMENTS",
+            input_summary="session",
+            output_summary=f"txns={len(state.payment_transactions)}",
+        )
+        return
     path = DATA_DIR / "sample_qris_transactions.csv"
     with open(path, encoding="utf-8") as f:
         state.payment_transactions = list(csv.DictReader(f))
@@ -123,6 +153,14 @@ def tool_load_payments(state: AgentState, provider_box: list[Any]) -> None:
 
 
 def tool_load_expenses(state: AgentState, provider_box: list[Any]) -> None:
+    if state.expenses is not None:
+        state.trace(
+            decision="Expenses present; use session ledger.",
+            tool="LOAD_EXPENSES",
+            input_summary="session",
+            output_summary=f"rows={len(state.expenses)}",
+        )
+        return
     path = DATA_DIR / "sample_expenses.csv"
     with open(path, encoding="utf-8") as f:
         state.expenses = list(csv.DictReader(f))
@@ -187,9 +225,21 @@ def tool_detect_payment_issues(state: AgentState, provider_box: list[Any]) -> No
     )
 
 
+def tool_simulate_doku_webhook(state: AgentState, provider_box: list[Any]) -> None:
+    """Idempotent webhook simulation — payment row added via session sandbox."""
+    state.trace(
+        decision="Simulate DOKU webhook (idempotent by event_id in session).",
+        tool="DOKU_WEBHOOK_SIMULATOR",
+        input_summary="mock",
+        output_summary="handled in UI sandbox before refresh",
+        status="ok",
+    )
+
+
 def tool_resolve_payment_requests(state: AgentState, provider_box: list[Any]) -> None:
     prov = provider_box[0]
-    state.payment_requests = []
+    if state.payment_requests is None:
+        state.payment_requests = []
     if state.payment_mode == "doku_sandbox" and _has_unpaid(state):
         try:
             _append_unpaid_payment_requests(state, prov, provider_box)
@@ -199,7 +249,7 @@ def tool_resolve_payment_requests(state: AgentState, provider_box: list[Any]) ->
             state.payment_mode = "mock"
             provider_box[0] = MockPaymentProvider()
             prov = provider_box[0]
-            state.payment_requests = []
+            state.payment_requests = list(state.payment_requests_by_order.values())
             _append_unpaid_payment_requests(state, prov, provider_box)
             state.trace(
                 decision="DOKU path failed; mock payment requests created.",
@@ -349,4 +399,5 @@ TOOL_REGISTRY: dict[str, ToolHandler] = {
     "GENERATE_DAILY_REPORT": tool_generate_daily_report,
     "VALIDATE_OUTPUTS": tool_validate_outputs,
     "EXPORT_REPORTS": tool_export_reports,
+    "DOKU_WEBHOOK_SIMULATOR": tool_simulate_doku_webhook,
 }

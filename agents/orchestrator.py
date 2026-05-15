@@ -105,6 +105,10 @@ def _finalize_state(state: AgentState) -> None:
 def run_agent_stream(
     cfg: RuntimeConfig,
     state: AgentState | None = None,
+    *,
+    run_id: int = 1,
+    trigger_reason: str = "manual",
+    reset_pipeline: bool = False,
 ) -> Iterator[AgentState]:
     """
     Generator that yields AgentState after each tool execution.
@@ -113,6 +117,16 @@ def run_agent_stream(
     state = state or AgentState(
         payment_mode=cfg.payment_mode,
         llm_mode=cfg.llm_mode,
+    )
+    if reset_pipeline:
+        state.reset_pipeline_outputs()
+    state.begin_run(run_id, trigger_reason)
+    state.trace(
+        decision=f"Trigger: {trigger_reason}",
+        tool="ORCHESTRATOR",
+        input_summary=f"run_id={run_id}",
+        output_summary="starting autonomous loop",
+        status="ok",
     )
     provider_box = _build_provider_box(cfg)
 
