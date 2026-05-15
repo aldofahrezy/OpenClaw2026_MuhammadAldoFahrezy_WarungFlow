@@ -15,7 +15,8 @@ import streamlit as st
 logging.getLogger("streamlit").setLevel(logging.WARNING)
 logging.getLogger("streamlit.watcher").setLevel(logging.ERROR)
 
-from agents.orchestrator import decide_next_action, run_agent
+from agents.orchestrator import decide_next_action, run_agent_stream
+from state import AgentState
 from config import RuntimeConfig
 from dashboard import (
     EXPORT_LABELS,
@@ -54,8 +55,10 @@ if "run_token" not in st.session_state:
     st.session_state.run_token = 0
 if "ui_nav" not in st.session_state:
     st.session_state.ui_nav = "dashboard"
-
-cfg = RuntimeConfig.load()
+if "payment_mode_choice" not in st.session_state:
+    st.session_state.payment_mode_choice = (
+        os.getenv("PAYMENT_MODE", "mock").strip().lower() or "mock"
+    )
 prod_ui = _is_production_ui()
 state = st.session_state.state
 
@@ -134,6 +137,19 @@ color:#006b47;font-size:0.75rem;font-weight:600;">Help Center</a>
         else:
             st.caption("Run the agent to load `data/merchant_profile.json`.")
 
+    st.markdown("**Payment mode**")
+    pay_choice = st.selectbox(
+        "Payment mode",
+        options=["mock", "doku_sandbox"],
+        index=0 if st.session_state.payment_mode_choice == "mock" else 1,
+        format_func=lambda x: "Mock Mode" if x == "mock" else "DOKU Sandbox Mode",
+        label_visibility="collapsed",
+        key="wf_payment_mode_select",
+    )
+    st.session_state.payment_mode_choice = pay_choice
+    os.environ["PAYMENT_MODE"] = pay_choice
+
+    cfg = RuntimeConfig.load()
     if prod_ui:
         st.caption(
             f"{cfg.warungflow_env} · LLM {cfg.llm_mode} · Pay {cfg.payment_mode}"
@@ -142,8 +158,11 @@ color:#006b47;font-size:0.75rem;font-weight:600;">Help Center</a>
         with st.expander("Environment (masked)", expanded=False):
             for line in cfg.env_summary_masked():
                 st.code(line, language="text")
+            if cfg.warnings:
+                for w in cfg.warnings:
+                    st.warning(w)
 
-# ----- Main: top app bar -----
+cfg = RuntimeConfig.load()
 h_left, h_mid, h_right = st.columns([2, 2, 2])
 with h_left:
     st.markdown('<p class="wf-top-title">WarungFlow</p>', unsafe_allow_html=True)
@@ -157,10 +176,33 @@ with h_mid:
         unsafe_allow_html=True,
     )
 with h_right:
-    run = st.button("Run Agent", type="primary", use_container_width=True, key="wf_run_agent")
+    run = st.button(
+        "Run WarungFlow Agent",
+        type="primary",
+        use_container_width=True,
+        key="wf_run_agent",
+    )
     if run:
-        with st.spinner("Running planner and tools…"):
-            st.session_state.state = run_agent(cfg)
+        seed = AgentState(payment_mode=cfg.payment_mode, llm_mode=cfg.llm_mode)
+        final_state: AgentState | None = None
+        with st.status("🧠 Agent Orchestrator Booting...", expanded=True) as agent_status:
+            for snapshot in run_agent_stream(cfg, seed):
+                final_state = snapshot
+                if snapshot.execution_trace:
+                    step = snapshot.execution_trace[-1]
+                    icon = {"ok": "✅", "warn": "⚠️", "error": "❌"}.get(step.status, "•")
+                    st.write(
+                        f"{icon} **Step {step.step_number}** · `{step.tool_called}` — "
+                        f"{step.output_summary}"
+                    )
+            if final_state is not None:
+                label = final_state.final_status or "COMPLETE"
+                agent_status.update(
+                    label=f"Agent run complete · {label}",
+                    state="complete",
+                )
+        if final_state is not None:
+            st.session_state.state = final_state
             st.session_state.run_token += 1
         st.rerun()
 
@@ -203,7 +245,10 @@ if state is None:
 """,
         unsafe_allow_html=True,
     )
-    st.info("Click **Run Agent** in the header to execute the autonomous workflow and populate this dashboard.")
+    st.info(
+        "Click **Run WarungFlow Agent** in the header to execute the autonomous "
+        "workflow and populate this dashboard."
+    )
     st.stop()
 
 # Errors

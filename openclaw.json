@@ -3,7 +3,51 @@
   "version": "1.0.0",
   "tagline": "Autonomous finance operations agent for Indonesian UMKM.",
   "description": "WarungFlow helps Indonesian warung and UMKM owners reconcile QRIS-style payments, detect unpaid orders, calculate daily cashflow, generate payment reminders, create financing-readiness reports, and optionally use DOKU Sandbox/MCP payment tools.",
+  "category": "AI Agent",
+  "track": "Best Payment Use Case",
+  "language": "Python",
+  "framework": "Streamlit",
+  "team": "OpenClaw2026_MuhammadAldoFahrezy",
+  "repository_name": "OpenClaw2026_MuhammadAldoFahrezy_WarungFlow",
   "workspace_dir": "workspace/",
   "agents_dir": "agents/",
-  "tools_dir": "tools/"
+  "tools_dir": "tools/",
+  "agentic_requirements": {
+    "has_tool_calls": true,
+    "has_autonomous_loop": true,
+    "has_memory": true,
+    "has_validation": true,
+    "is_basic_chatbot": false
+  },
+  "agents": [
+    "Orchestrator Agent",
+    "Data Cleaner Agent",
+    "Payment Reconciliation Agent",
+    "Cashflow Analyst Agent",
+    "Advisor Agent",
+    "Validator Agent"
+  ],
+  "tools": [
+    "LOAD_MERCHANT_PROFILE",
+    "LOAD_ORDERS",
+    "PARSE_ORDERS",
+    "ESTIMATE_OR_FLAG_UNKNOWN_AMOUNTS",
+    "LOAD_PAYMENTS",
+    "LOAD_EXPENSES",
+    "LOAD_CUSTOMERS",
+    "RECONCILE_PAYMENTS",
+    "DETECT_PAYMENT_ISSUES",
+    "RESOLVE_PAYMENT_REQUESTS",
+    "CHECK_PAYMENT_STATUS",
+    "CALCULATE_CASHFLOW",
+    "SCORE_CASHFLOW_HEALTH",
+    "GENERATE_REMINDERS",
+    "GENERATE_FINANCING_READINESS",
+    "GENERATE_DAILY_REPORT",
+    "VALIDATE_OUTPUTS",
+    "EXPORT_REPORTS"
+  ],
+  "demo_command": "streamlit run app.py",
+  "test_command": "python smoke_test.py",
+  "sample_merchant": "Warung Bu Sari"
 }

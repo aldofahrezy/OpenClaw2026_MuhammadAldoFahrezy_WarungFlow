@@ -1,35 +1,73 @@
 # Devpost Submission
-**OpenClaw2026_[TEAM_NAME]_WarungFlow**
+
+**Team:** OpenClaw2026_MuhammadAldoFahrezy  
+**Project:** OpenClaw2026_MuhammadAldoFahrezy_WarungFlow  
+**Track:** Best Payment Use Case  
+**Devpost:** https://openclawagenthon.devpost.com/
+
+## Tagline
+
+From messy notes to bankable reports, autonomously.
 
 ## Inspiration
-Indonesian UMKM and warung owners rely heavily on informal WhatsApp messaging and scattered payment methods (QRIS, bank transfers, cash). Checking who has paid and calculating daily profit is a massive manual chore. We wanted to build an AI that does this tedious back-office work autonomously.
+
+Indonesian UMKM and warung owners rely on informal WhatsApp messaging and scattered payment methods (QRIS, bank transfers, cash). Checking who has paid and calculating daily profit is a massive manual chore. We built an agent that does this back-office work autonomously.
 
 ## What it does
-WarungFlow is an autonomous finance operations agent. Given messy WhatsApp orders, expense records, and QRIS-style transaction logs, it enters an autonomous loop to:
-1. Parse and extract structured data from informal chat messages.
-2. Reconcile expected payments against actual bank/QRIS transactions using fuzzy logic.
-3. Flag unpaid, partially paid, or suspicious orders.
-4. Optionally use DOKU Sandbox tools to generate payment links for unpaid orders.
-5. Calculate cashflow, net profit, and assign a business health score.
-6. Generate actionable outputs like payment reminders and financing-readiness reports.
+
+WarungFlow is an autonomous finance operations agent. Given messy WhatsApp orders, expense records, and QRIS-style transaction logs, it:
+
+1. Parses and structures informal chat orders (deterministic + catalog pricing).
+2. Reconciles payments with fuzzy Indonesian name matching and order-ID priority in bank notes.
+3. Flags UNPAID, PARTIALLY_PAID, OVERPAID, and NEEDS_REVIEW orders.
+4. Optionally creates DOKU Sandbox payment requests (mock fallback without credentials).
+5. Calculates cashflow, net profit, and a health score.
+6. Generates Bahasa Indonesia payment reminders and financing-readiness text.
+7. Validates and exports markdown/CSV reports.
 
 ## How we built it
-We built it strictly as a multi-agent system rather than a conversational chatbot. 
-- **Tech Stack**: Python, Streamlit, Pandas.
-- **Agent Architecture**: A state-driven Orchestrator Agent runs a `while` loop, continuously evaluating an `AgentState` object to determine the next required tool call. It coordinates specialized agents (Data Cleaner, Reconciliation, Analyst, Advisor, Validator).
-- **Payment Use Case**: We integrated the DOKU Sandbox API to dynamically generate payment links when the agent identifies an unpaid order. It elegantly falls back to a deterministic Mock Mode if credentials are missing.
 
-## Challenges we ran into
-Building a robust reconciliation engine that doesn't blindly match the wrong payment to the wrong order. We had to implement a global confidence-sorted matching algorithm rather than a naive greedy loop. Handling the ambiguity of Indonesian WhatsApp "kasbon" culture was also a unique challenge.
+- **Not a chatbot:** state-driven orchestrator (`decide_next_action`) runs up to 20 tool steps per click.
+- **Memory:** `AgentState` + `execution_trace` visible in Streamlit.
+- **Tools:** 18 real Python handlers (load, parse, reconcile, cashflow, advise, validate, export).
+- **Workspace:** `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `HEARTBEAT.md`, `MEMORY.md` for OpenClaw/QwenPaw.
+- **Payment:** QRIS CSV reconciliation + `MockPaymentProvider` / optional `DokuSandboxProvider`.
 
-## Accomplishments that we're proud of
-We successfully built a true agentic loop. The user only clicks "Run Agent" once, and the Orchestrator autonomously plans and executes up to 20 tool calls, logging its entire execution trace clearly on the dashboard. The system works completely end-to-end.
+## Challenges
+
+- Preventing wrong payment-to-order matches ("Joko paradox") when bank notes mention multiple names but include an `order_id`.
+- Indonesian honorifics and bank display names vs WhatsApp customer names.
+- Keeping financial logic deterministic while still demonstrating agentic autonomy.
+
+## Accomplishments
+
+- One-button autonomous run from sample data to exported reports without API keys.
+- Full execution trace for judges (tool name, decision, I/O summary per step).
+- End-to-end demo merchant Warung Bu Sari with 10 WhatsApp orders.
 
 ## What we learned
-We learned that deterministic tools are far better for critical financial logic (like exact matching and arithmetic) than LLMs. The best architecture uses deterministic Python functions for the heavy lifting and LLMs for parsing messy text and generating empathetic natural language.
 
-## What's next for WarungFlow
-Direct integration with the WhatsApp Business API to ingest orders in real-time, live syncing with DOKU webhooks, and creating standardized report templates for micro-financing applications at Indonesian banks.
+Deterministic tools should own money matching and arithmetic; the agent loop should own planning, sequencing, and validation. LLMs are optional enrichments, not the critical path.
+
+## What's next
+
+WhatsApp Business API ingestion, live DOKU webhooks, POS hooks, and bank-ready financing packets.
 
 ## AI tools/models used
-- Used Gemini for code generation, structuring the agent loop, and generating dummy data.
+
+- Cursor IDE agent
+- Google Gemini (development assistance for structure and sample content)
+
+## Autonomous agent proof
+
+| Requirement | Implementation |
+|-------------|----------------|
+| Tool calls | `TOOL_REGISTRY` in `agents/tool_handlers.py` |
+| Autonomous loop | `run_agent_stream()` in `agents/orchestrator.py` |
+| Memory/state | `state.py` → `AgentState` |
+| Validation | `VALIDATE_OUTPUTS` tool |
+| Runnable locally | `python smoke_test.py` + `streamlit run app.py` |
+
+## GitHub
+
+Public repository with README install instructions. Judges: see README → smoke test → Streamlit → **Run WarungFlow Agent**.

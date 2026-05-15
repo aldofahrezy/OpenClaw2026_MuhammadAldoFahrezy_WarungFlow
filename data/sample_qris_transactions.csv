@@ -2,3 +2,5 @@ transaction_id,timestamp,payer_name,amount,payment_method,reference_note
 p1,2026-05-15T08:30:00,J. Santoso,48000,QRIS,Bayar ORD-0007 Joko es kopi
 p2,2026-05-15T09:15:00,Sari Office,50000,bank_transfer,DP catering ORD-0005 Sari
 p3,2026-05-15T10:00:00,Rina,36000,transfer,ayam geprek 2
+p4,2026-05-15T10:30:00,Andi W,45000,qris,Bayar ORD-0001 nasi uduk Andi
+p5,2026-05-15T11:00:00,R. Putri,25000,QRIS,ORD-0010 Putri ayam geprek

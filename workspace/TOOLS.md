@@ -11,7 +11,7 @@ This document outlines all callable tools available to the WarungFlow agent.
 - `load_customers_tool()`: Loads the customer CRM data.
 
 ## Reconciliation Tools
-- `normalize_customer_tool()`: Normalizes and matches customer names.
+- `LOAD_CUSTOMERS`: Loads `sample_customers.csv` and merges names from parsed orders.
 - `reconcile_payments_tool()`: Matches parsed orders against payment transactions.
 - `detect_payment_issues_tool()`: Identifies discrepancies, partial payments, and unpaid orders.
 
