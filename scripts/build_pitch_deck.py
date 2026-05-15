@@ -463,6 +463,13 @@ def slide_4(c: canvas.Canvas) -> None:
     c.setFillColor(TEAL)
     c.drawString(rx + 22, ly + rh - 28, "Tech stack")
 
+    live_h = 50
+    det_h = 58
+    stack_gap = 10
+    live_y = ly + 18
+    det_y = live_y + live_h + stack_gap
+    chip_floor = det_y + det_h + stack_gap
+
     chips = [
         ("Python 3.11", TEAL),
         ("Streamlit", TEAL),
@@ -482,12 +489,16 @@ def slide_4(c: canvas.Canvas) -> None:
     cx = rx + 20
     cy_chip = ly + rh - 56
     chip_h = 20
+    row_step = 26
     max_x = rx + rw - 20
     for label, color in chips:
         w = pdfmetrics.stringWidth(label, BOLD, 9) + 18
         if cx + w > max_x:
             cx = rx + 20
-            cy_chip -= 26
+            cy_chip -= row_step
+        if cy_chip - 14 < chip_floor:
+            cx = rx + 20
+            cy_chip -= row_step
         c.setFillColor(color)
         c.roundRect(cx, cy_chip - 14, w, chip_h, 10, fill=1, stroke=0)
         c.setFont(BOLD, 9)
@@ -497,25 +508,23 @@ def slide_4(c: canvas.Canvas) -> None:
 
     nx = rx + 20
     nw = rw - 40
-    nh = 60
-    ny = ly + 100
     c.setFillColor(GREEN_SOFT)
-    c.roundRect(nx, ny, nw, nh, 10, fill=1, stroke=0)
+    c.roundRect(nx, det_y, nw, det_h, 10, fill=1, stroke=0)
     c.setFont(BOLD, 9.5)
     c.setFillColor(GREEN)
-    c.drawString(nx + 14, ny + nh - 18, "DETERMINISTIC FINANCE LOGIC")
+    c.drawString(nx + 14, det_y + det_h - 18, "DETERMINISTIC FINANCE LOGIC")
     c.setFont(REG, 9.5)
     c.setFillColor(INK)
-    c.drawString(nx + 14, ny + nh - 32, "Tool deterministik menangani uang dan aritmetika.")
-    c.drawString(nx + 14, ny + nh - 46, "LLM opsional hanya untuk nada pengingat WhatsApp.")
+    c.drawString(nx + 14, det_y + det_h - 32, "Tool deterministik menangani uang dan aritmetika.")
+    c.drawString(nx + 14, det_y + det_h - 46, "LLM opsional hanya untuk nada pengingat WhatsApp.")
 
     c.setFillColor(GREEN)
-    c.roundRect(rx + 20, ly + 22, rw - 40, 56, 10, fill=1, stroke=0)
+    c.roundRect(nx, live_y, nw, live_h, 10, fill=1, stroke=0)
     c.setFont(BOLD, 10)
     c.setFillColor(WHITE)
-    c.drawString(rx + 32, ly + 56, "Live demo:  43.157.208.68:8501")
+    c.drawString(rx + 32, live_y + live_h - 16, "Live demo:  43.157.208.68:8501")
     c.setFont(MONO, 10)
-    c.drawString(rx + 32, ly + 38, "python smoke_test.py -v")
+    c.drawString(rx + 32, live_y + live_h - 32, "python smoke_test.py -v")
 
     page_footer(
         c,
