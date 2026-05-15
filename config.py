@@ -7,6 +7,20 @@ from typing import Literal
 
 from dotenv.parser import parse_stream
 
+_REPO_ROOT = Path(__file__).resolve().parent
+
+
+def _load_streamlit_secrets_into_environ() -> None:
+    """Map Streamlit Community Cloud secrets to os.environ for RuntimeConfig."""
+    try:
+        import streamlit as st  # noqa: PLC0415
+
+        for key, value in st.secrets.items():
+            if isinstance(value, (str, int, float, bool)):
+                os.environ.setdefault(str(key), str(value))
+    except Exception:
+        return
+
 
 def _load_dotenv_best_effort(
     dotenv_path: Path | None = None, *, override: bool = False
@@ -16,7 +30,7 @@ def _load_dotenv_best_effort(
     Valid KEY=value lines are applied; malformed lines are skipped. Matches
     load_dotenv(override=False) semantics: existing os.environ entries win unless override.
     """
-    path = dotenv_path or Path(__file__).resolve().parent.parent / ".env"
+    path = dotenv_path or _REPO_ROOT / ".env"
     if not path.is_file():
         return
     try:
@@ -69,6 +83,8 @@ class RuntimeConfig:
 
     @staticmethod
     def load() -> "RuntimeConfig":
+        _load_streamlit_secrets_into_environ()
+        _load_dotenv_best_effort()
         warnings: list[str] = []
         wf_env = (os.getenv("WARUNGFLOW_ENV") or "local").strip()
 

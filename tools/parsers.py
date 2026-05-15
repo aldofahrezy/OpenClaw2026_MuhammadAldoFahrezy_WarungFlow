@@ -6,11 +6,18 @@ from pathlib import Path
 from typing import Any
 
 
-_CATALOG_PATH = Path(__file__).resolve().parent.parent / "menu_price_catalog.json"
+_ROOT = Path(__file__).resolve().parent.parent
+_CATALOG_CANDIDATES = (
+    _ROOT / "data" / "menu_price_catalog.json",
+    _ROOT / "menu_price_catalog.json",
+)
 
 
 def load_menu_catalog(path: Path | None = None) -> dict[str, int]:
-    p = path or _CATALOG_PATH
+    if path is not None:
+        p = path
+    else:
+        p = next((c for c in _CATALOG_CANDIDATES if c.exists()), _CATALOG_CANDIDATES[0])
     if not p.exists():
         return {}
     with open(p, encoding="utf-8") as f:

@@ -92,6 +92,17 @@ streamlit run app.py
 
 Click **Run WarungFlow Agent** once. The orchestrator autonomously loads sample data, parses orders, reconciles payments, generates reports, validates, and exports files to `outputs/`.
 
+## Live deployment (Devpost bonus)
+
+Deploy free on **Streamlit Community Cloud** — step-by-step in **[DEPLOY.md](DEPLOY.md)**.
+
+1. Push `main` to https://github.com/aldofahrezy/Warung-Flow  
+2. https://share.streamlit.io → Create app → `app.py`  
+3. Paste secrets from `.streamlit/secrets.toml.example` (`PAYMENT_MODE=mock`)  
+4. Add the `*.streamlit.app` URL to Devpost **Live Deployment Link**
+
+Suggested app slug: `warungflow-muhammadaldofahrezy`
+
 ## Environment variables
 
 See `.env.example`. DOKU keys are optional; missing credentials fall back to mock mode with a non-blocking warning.

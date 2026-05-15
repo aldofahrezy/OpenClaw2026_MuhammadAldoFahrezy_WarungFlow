@@ -221,6 +221,12 @@ if cfg.warnings:
         st.warning(w, icon="⚠️")
 
 # ----- Dashboard body -----
+if cfg.warungflow_env == "production":
+    st.info(
+        "Live demo · OpenClaw2026_MuhammadAldoFahrezy — "
+        "mock mode (no API keys). Click **Run WarungFlow Agent** to start.",
+        icon="🌐",
+    )
 st.markdown(mock_mode_banner_html(cfg), unsafe_allow_html=True)
 
 if state is None:

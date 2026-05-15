@@ -71,3 +71,11 @@ WhatsApp Business API ingestion, live DOKU webhooks, POS hooks, and bank-ready f
 ## GitHub
 
 Public repository with README install instructions. Judges: see README → smoke test → Streamlit → **Run WarungFlow Agent**.
+
+## Live deployment
+
+Deploy via Streamlit Community Cloud (see `DEPLOY.md`). Suggested URL after deploy:
+
+`https://warungflow-muhammadaldofahrezy.streamlit.app`
+
+Paste this in Devpost **Live Deployment Link (Optional)** for bonus points.

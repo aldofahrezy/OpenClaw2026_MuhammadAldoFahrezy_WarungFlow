@@ -1,0 +1,15 @@
+# Optional: deploy on Render (https://render.com) if not using Streamlit Cloud
+services:
+  - type: web
+    name: warungflow
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
+    envVars:
+      - key: WARUNGFLOW_ENV
+        value: production
+      - key: PAYMENT_MODE
+        value: mock
+      - key: LLM_MODE
+        value: mock

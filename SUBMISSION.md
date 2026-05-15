@@ -13,6 +13,7 @@
 - [ ] YouTube demo (**Unlisted**, ≤2 min): `OpenClaw2026_MuhammadAldoFahrezy_WarungFlow`
 - [ ] Pitch deck PDF (≤5 slides): `docs/OpenClaw2026_MuhammadAldoFahrezy_WarungFlow.pdf`
 - [ ] AI tools/models listed on Devpost
+- [ ] **Live URL** on Devpost (Streamlit Cloud — see `DEPLOY.md`)
 - [ ] **Stop all commits after deadline**
 
 ## Demo video shot list (2 min)
