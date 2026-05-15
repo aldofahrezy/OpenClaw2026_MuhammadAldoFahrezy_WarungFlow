@@ -1,88 +1,113 @@
 # WarungFlow
+**Autonomous finance operations agent for Indonesian UMKM.**
 
-**WarungFlow** bridges the gap between messy digital commerce and formal financial readiness for Indonesian UMKM.
+## Problem Statement
+Many Indonesian UMKM and warung owners receive orders through WhatsApp, accept payments through QRIS/bank transfer/cash, and track expenses manually. At the end of the day, they often do not know which customers have paid, which payments are partial, how much revenue came in, or what action they should take next. The manual process of matching WhatsApp chats to bank mutations is slow and error-prone.
 
-- **Input:** WhatsApp-style orders, QRIS-like payments, and expense notes  
-- **Agent work:** Perception → action → reasoning → communication → validation  
-- **Output:** A bankable daily business report pack (markdown + CSV)
+## Solution Overview
+WarungFlow solves this by acting as an autonomous finance operations agent. It parses messy order messages, reconciles payments deterministically, detects unpaid/partial payments, calculates daily cashflow, scores the business health, and even generates DOKU Sandbox payment links for unpaid orders.
 
-**Demo tagline:** From messy notes to bankable reports, autonomously.
+## Why this matters for Indonesian UMKM
+UMKMs are the backbone of the Indonesian economy. Giving them an autonomous financial assistant allows them to collect unpaid revenue without spending hours on bookkeeping. It bridges the gap between informal digital commerce and formal financial readiness.
 
-WarungFlow is deterministic-first: even without an LLM key or DOKU credentials, the autonomous loop still calls tools, reconciles payments, calculates cashflow, validates outputs, and exports reports using local sample data.
+## Why this is not a chatbot
+WarungFlow is NOT a chatbot. It does not wait for a user's prompt. When triggered, it enters a `while` loop, autonomously deciding which tool to call based on the current state. It possesses memory, tool-calling capabilities ("tangan"), and an execution trace that clearly documents its reasoning and actions.
 
-## Quick start
+## Agent Workflow & Autonomous Loop
+The agent runs in a continuous heartbeat loop:
+1. Observe current state.
+2. Decide next required action.
+3. Call the correct tool.
+4. Update state.
+5. Validate progress and continue until the task is complete.
 
-Use a **project-local virtual environment** at **`.venv`** in the repository root. Do not install project dependencies into the system Python interpreter.
-
-### 1. Create the virtual environment
-
-```bash
-python3 -m venv .venv
+```mermaid
+flowchart TD
+    A[Messy WhatsApp Orders] --> B[Data Cleaner Agent]
+    C[QRIS/DOKU Payments] --> D[Payment Reconciliation Agent]
+    B --> D
+    D --> E[Cashflow Analyst Agent]
+    E --> F[Advisor Agent]
+    F --> G[Validator Agent]
+    G --> H[Exported Reports]
 ```
 
-### 2. Activate the virtual environment
+## Tool Call Architecture
+WarungFlow utilizes multiple deterministic tools (e.g. `parse_orders_tool`, `reconcile_payments_tool`, `doku_create_payment_request_tool`). Each tool modifies the central `AgentState` object, driving the state machine forward.
 
-**macOS / Linux:**
+## DOKU Sandbox Integration
+We integrated the DOKU Sandbox API to dynamically generate payment links when the agent identifies an unpaid order. It falls back gracefully to a Mock Mode if credentials are not configured in `.env`.
 
+## Tech Stack
+- Python
+- Streamlit
+- Pandas
+- Pydantic
+- python-dotenv
+- RapidFuzz
+
+## Installation
+
+1. Create and activate a virtual environment:
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-**Windows (Command Prompt):**
-
-```cmd
-.venv\Scripts\activate.bat
-```
-
-**Windows (PowerShell):**
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-### 3. Install dependencies
-
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Run the Streamlit app
-
-On first setup, copy the environment template (see [Configuration](#configuration)):
-
+3. Setup environment variables:
 ```bash
 cp .env.example .env
 ```
 
-Then start the app (with the virtual environment still activated):
+## Environment Variables
+Edit `.env` and add:
+```
+DOKU_CLIENT_ID=dk_********1234
+DOKU_SECRET_KEY=SK-********
+DOKU_SANDBOX_BASE_URL=https://api-sandbox.doku.com
+DOKU_WEBHOOK_SECRET=WH-********
+DOKU_ENV=sandbox
+```
 
+## How to run
+Run the Streamlit app:
 ```bash
 streamlit run app.py
 ```
 
-### 5. Run smoke tests
+## How to use sample data
+The `data/` directory contains sample data for Warung Bu Sari:
+- `sample_orders_whatsapp.txt`
+- `sample_qris_transactions.csv`
+- `sample_expenses.csv`
+- `merchant_profile.json`
 
-In another terminal, activate `.venv` the same way as in step 2, then:
+The agent automatically loads this data during its first loop iteration.
 
-```bash
-python smoke_test.py
-```
+## Demo Scenario
+1. Open the UI.
+2. Select Mock Mode or DOKU Sandbox Mode.
+3. Click **Run WarungFlow Agent**.
+4. Watch the agent parse WhatsApp messages, reconcile payments, flag unpaid orders, calculate health score, and export reports autonomously.
 
-## Configuration
+## Screenshots
+![Dashboard](docs/screenshots/dashboard.png)
+*(Placeholder for screenshot)*
 
-Copy `.env.example` to `.env` for local development. Environment variables are read from `.env` using the same parser as `python-dotenv` (`dotenv.parser`): **valid `KEY=value` lines are applied; invalid lines are skipped without noisy warnings** (for example unquoted multi-line PEM blobs). Do not commit `.env`.
+## Known limitations
+- Currently processes local files instead of live WhatsApp webhooks.
+- DOKU Sandbox integration is currently for testing and is not connected to live banking networks.
 
-For PEM material, prefer a file path (`MERCHANT_PRIVATE_KEY_PATH`) or a **single-line** quoted value. Raw multi-line certificates in `.env` are not supported by the dotenv format.
+## Future development
+- WhatsApp Business API integration for live order parsing.
+- Real-time QRIS/DOKU webhook syncing.
+- Expansion to POS integration.
+- Direct lending/micro-financing application pipeline for banks.
 
-If API keys or DOKU credentials are missing, the app uses `LLM_MODE=mock` and `PAYMENT_MODE=mock`, continues the workflow, and surfaces non-blocking warnings in the UI.
-
-## Project layout
-
-- `warungflow/` — agent state, state-driven planner, tools, parser, reconciliation, payment adapters, export  
-- `data/` — local sample merchant, orders, payments, expenses  
-- `menu_price_catalog.json` — price hints when orders have no explicit total  
-- `outputs/` — generated reports (created at runtime)
-
-## Security
-
-Never put real secrets in documentation templates, sample data, or source files. Use environment variables only.
+## AI tools/models used
+- Gemini was used for code generation, structuring the agent loop, and creating dummy data representations.

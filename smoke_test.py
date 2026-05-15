@@ -3,24 +3,35 @@
 
 from __future__ import annotations
 
+import argparse
 import os
+import sys
 from pathlib import Path
 
 # Deterministic CI-style env
 os.environ.setdefault("LLM_MODE", "mock")
 os.environ.setdefault("PAYMENT_MODE", "mock")
 
-from warungflow.agent_loop import run_agent
-from warungflow.config import RuntimeConfig
-from warungflow.export import OUTPUT_DIR, ROOT
-from warungflow.parser import parse_orders_batch
+from agents.orchestrator import run_agent
+from config import RuntimeConfig
+from tools.export_utils import OUTPUT_DIR, ROOT
+from tools.parsers import parse_orders_batch
 
 
 def main() -> None:
-    data_dir = ROOT / "data"
-    assert (data_dir / "sample_orders.txt").is_file(), "sample orders missing"
+    parser = argparse.ArgumentParser(description="WarungFlow smoke tests")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print a short success message (default is silent on success)",
+    )
+    args = parser.parse_args()
 
-    raw = (data_dir / "sample_orders.txt").read_text(encoding="utf-8").splitlines()
+    data_dir = ROOT / "data"
+    assert (data_dir / "sample_orders_whatsapp.txt").is_file(), "sample orders missing"
+
+    raw = (data_dir / "sample_orders_whatsapp.txt").read_text(encoding="utf-8").splitlines()
     raw = [ln for ln in raw if ln.strip()]
     parsed = parse_orders_batch(raw)
     assert len(parsed) >= 1, "parser should produce parsed_orders"
@@ -52,7 +63,8 @@ def main() -> None:
 
     assert len(state.execution_trace) >= 8, "execution trace should show >= 8 tool calls"
 
-    print("smoke_test: OK")
+    if args.verbose:
+        print("smoke_test: OK", file=sys.stdout)
 
 
 if __name__ == "__main__":

@@ -119,28 +119,36 @@ def reconcile_orders(
     payments: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """
-    Greedy best-match reconciliation with fuzzy names and confidence scoring.
+    Globally sorted best-match reconciliation with fuzzy names and confidence scoring.
     """
     used_payment_ids: set[str] = set()
     results: list[dict[str, Any]] = []
 
+    pairs = []
     for order in orders:
-        oid = str(order.get("order_id"))
-        best: tuple[float, dict[str, Any], int] | None = None
-
         for pay in payments:
-            pid = str(pay.get("id") or pay.get("payment_id") or "")
-            if pid and pid in used_payment_ids:
-                continue
             amt = pay.get("amount")
             if amt is None:
                 continue
             paid_amt = int(amt)
             conf, breakdown = _confidence(order, pay, paid_amt)
-            if best is None or conf > best[0]:
-                best = (conf, pay, paid_amt)
+            pairs.append((conf, order, pay, paid_amt, breakdown))
+    
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    
+    matched_orders = {}
+    for conf, order, pay, paid_amt, breakdown in pairs:
+        oid = str(order.get("order_id"))
+        pid = str(pay.get("transaction_id") or pay.get("id") or pay.get("payment_id") or "")
+        if oid not in matched_orders and pid not in used_payment_ids:
+            if conf >= 38.0:
+                matched_orders[oid] = (conf, pay, paid_amt, breakdown)
+                if pid:
+                    used_payment_ids.add(pid)
 
-        if best is None:
+    for order in orders:
+        oid = str(order.get("order_id"))
+        if oid not in matched_orders:
             exp = order.get("amount_expected")
             st = "UNKNOWN" if exp is None else "UNPAID"
             results.append(
@@ -151,35 +159,16 @@ def reconcile_orders(
                     "matched_amount": 0,
                     "confidence": 0.0,
                     "confidence_breakdown": {},
-                    "notes": "no_payments_in_pool",
+                    "notes": "no_payments_in_pool" if not payments else "no_confident_match",
                 }
             )
             continue
-
-        conf, pay, paid_amt = best
-        if conf < 38.0:
-            exp = order.get("amount_expected")
-            st = "UNKNOWN" if exp is None else "UNPAID"
-            results.append(
-                {
-                    "order_id": oid,
-                    "status": st,
-                    "matched_payment_ids": [],
-                    "matched_amount": 0,
-                    "confidence": round(conf, 2),
-                    "confidence_breakdown": {},
-                    "notes": "no_confident_match",
-                }
-            )
-            continue
-        pid = str(pay.get("id") or pay.get("payment_id") or "")
-        if pid:
-            used_payment_ids.add(pid)
-
+            
+        conf, pay, paid_amt, breakdown = matched_orders[oid]
+        pid = str(pay.get("transaction_id") or pay.get("id") or pay.get("payment_id") or "")
         exp = order.get("amount_expected")
         expected_int = int(exp) if isinstance(exp, int) else None
 
-        # DP / partial: if order has dp and payment equals dp, still PARTIALLY_PAID vs total
         status = _reconcile_status(expected_int, paid_amt, conf)
         if status == "UNKNOWN" and conf >= 60:
             status = "NEEDS_REVIEW"

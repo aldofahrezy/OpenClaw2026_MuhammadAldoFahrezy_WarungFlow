@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .base import PaymentProvider
+from .payment_adapter import PaymentProvider
 
 logger = logging.getLogger(__name__)
 

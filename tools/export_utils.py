@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from warungflow.state import AgentState, ExecutionStep
+    from state import AgentState, ExecutionStep
 
 
 ROOT = Path(__file__).resolve().parent.parent

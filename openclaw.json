@@ -1,0 +1,9 @@
+{
+  "name": "WarungFlow",
+  "version": "1.0.0",
+  "tagline": "Autonomous finance operations agent for Indonesian UMKM.",
+  "description": "WarungFlow helps Indonesian warung and UMKM owners reconcile QRIS-style payments, detect unpaid orders, calculate daily cashflow, generate payment reminders, create financing-readiness reports, and optionally use DOKU Sandbox/MCP payment tools.",
+  "workspace_dir": "workspace/",
+  "agents_dir": "agents/",
+  "tools_dir": "tools/"
+}

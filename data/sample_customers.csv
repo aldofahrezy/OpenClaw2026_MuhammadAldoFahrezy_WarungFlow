@@ -1,0 +1,8 @@
+customer_name,phone,customer_type,usual_payment_behavior
+Joko,081234567890,regular,QRIS
+Sari Office,081234567891,corporate,DP then transfer
+Rina,081234567892,regular,transfer
+Andi,081234567893,regular,QRIS
+Pak Budi,081234567894,corporate,pay later
+Dinda,081234567895,regular,cash
+Bu Lina,081234567896,regular,pay later

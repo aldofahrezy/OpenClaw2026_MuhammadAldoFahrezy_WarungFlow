@@ -1,6 +1,9 @@
 {
-  "name": "Warung Makmur",
-  "owner": "Ibu Siti",
-  "location": "Jakarta",
-  "whatsapp_business": "+6280000000000"
+  "merchant_name": "Warung Bu Sari",
+  "owner_name": "Bu Sari",
+  "city": "Jakarta",
+  "business_type": "Warung Makan & Catering",
+  "average_daily_orders": 30,
+  "payment_methods": ["QRIS", "bank_transfer", "cash", "pay_later"],
+  "financing_goal": "Modal ekspansi cabang baru"
 }

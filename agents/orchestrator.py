@@ -5,16 +5,16 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from warungflow.cashflow import calculate_cashflow, score_cashflow_health
-from warungflow.config import RuntimeConfig
-from warungflow.export import export_all
-from warungflow.narratives import generate_financing_readiness, generate_reminders
-from warungflow.parser import parse_orders_batch
-from warungflow.providers.doku import DokuSandboxProvider
-from warungflow.providers.mock import MockPaymentProvider
-from warungflow.reconciliation import detect_payment_issues, reconcile_orders
-from warungflow.reports import generate_daily_report, validate_outputs
-from warungflow.state import AgentState
+from tools.cashflow_tools import calculate_cashflow, score_cashflow_health
+from config import RuntimeConfig
+from tools.export_utils import export_all
+from tools.report_generator import generate_financing_readiness, generate_reminders
+from tools.parsers import parse_orders_batch
+from tools.doku_sandbox_provider import DokuSandboxProvider
+from tools.mock_payment_provider import MockPaymentProvider
+from tools.reconciliation_tools import detect_payment_issues, reconcile_orders
+from tools.report_generator import generate_daily_report, validate_outputs
+from state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ def execute_tool(name: str, state: AgentState, provider_box: list[Any]) -> None:
         return
 
     if name == "LOAD_ORDERS":
-        path = DATA_DIR / "sample_orders.txt"
+        path = DATA_DIR / "sample_orders_whatsapp.txt"
         raw = path.read_text(encoding="utf-8").splitlines()
         state.raw_orders = [ln for ln in raw if ln.strip()]
         state.trace(
@@ -144,9 +144,11 @@ def execute_tool(name: str, state: AgentState, provider_box: list[Any]) -> None:
         return
 
     if name == "LOAD_PAYMENTS":
-        path = DATA_DIR / "sample_payments.json"
+        path = DATA_DIR / "sample_qris_transactions.csv"
+        import csv
         with open(path, encoding="utf-8") as f:
-            state.payment_transactions = json.load(f)
+            reader = csv.DictReader(f)
+            state.payment_transactions = list(reader)
         state.trace(
             decision="Payment pool missing; load transactions.",
             tool=name,
@@ -156,9 +158,11 @@ def execute_tool(name: str, state: AgentState, provider_box: list[Any]) -> None:
         return
 
     if name == "LOAD_EXPENSES":
-        path = DATA_DIR / "sample_expenses.json"
+        path = DATA_DIR / "sample_expenses.csv"
+        import csv
         with open(path, encoding="utf-8") as f:
-            state.expenses = json.load(f)
+            reader = csv.DictReader(f)
+            state.expenses = list(reader)
         state.trace(
             decision="Expense ledger missing; load notes.",
             tool=name,

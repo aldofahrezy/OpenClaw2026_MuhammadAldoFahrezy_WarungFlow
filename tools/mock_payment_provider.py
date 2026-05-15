@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Any
 
-from .base import PaymentProvider
+from .payment_adapter import PaymentProvider
 
 logger = logging.getLogger(__name__)
 

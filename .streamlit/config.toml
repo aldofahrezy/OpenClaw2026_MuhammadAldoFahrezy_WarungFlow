@@ -1,0 +1,18 @@
+# Production-oriented defaults for Streamlit Cloud / container hosts.
+# Override locally by editing this file or setting STREAMLIT_* env vars.
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 50
+
+[theme]
+primaryColor = "#0d9488"
+backgroundColor = "#fafafa"
+secondaryBackgroundColor = "#ecfdf5"
+textColor = "#134e4a"
+font = "sans serif"
