@@ -8,6 +8,10 @@ User=root
 WorkingDirectory=/root/agenthon
 EnvironmentFile=-/root/agenthon/.env
 Environment=WARUNGFLOW_ENV=production
+Environment=WARUNGFLOW_LIVE_URL=http://43.157.208.68:8501
+Environment=PUBLIC_BASE_URL=http://43.157.208.68:8501
+Environment=STREAMLIT_SERVER_ADDRESS=0.0.0.0
+Environment=STREAMLIT_SERVER_HEADLESS=true
 ExecStart=/root/agenthon/.venv/bin/streamlit run app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
 Restart=on-failure
 RestartSec=5

@@ -3,8 +3,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export WARUNGFLOW_ENV="${WARUNGFLOW_ENV:-production}"
-export PAYMENT_MODE="${PAYMENT_MODE:-mock}"
+# Payment provider: chosen in UI (Simulasi → Mode pembayaran), not via PAYMENT_MODE env.
 export LLM_MODE="${LLM_MODE:-mock}"
+export PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-http://43.157.208.68:8501}"
+export WARUNGFLOW_LIVE_URL="${WARUNGFLOW_LIVE_URL:-http://43.157.208.68:8501}"
 
 if [[ ! -d .venv ]]; then
   python3 -m venv .venv

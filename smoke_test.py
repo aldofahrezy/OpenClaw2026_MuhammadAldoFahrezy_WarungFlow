@@ -20,7 +20,10 @@ from config import RuntimeConfig
 from live_sandbox import EXPENSE_CATEGORIES
 from session_runtime import (
     SANDBOX_FINGERPRINT_KEYS,
+    _agent_state_from_snapshot,
+    _agent_state_to_snapshot,
     clear_sandbox_duplicate_state,
+    clear_ui_session_snapshot,
     stable_hash,
 )
 from state import AgentState
@@ -272,6 +275,14 @@ def main() -> None:
     assert exp_total_after > exp_total_before, "expenses should increase"
     assert net_after < net_before, "net profit should decrease after expense shock"
 
+    # 6b. Agent state snapshot roundtrip (browser refresh persistence)
+    snap_agent = _run_stream(copy.deepcopy(bundle), run_id=61)
+    restored = _agent_state_from_snapshot(_agent_state_to_snapshot(snap_agent))
+    assert restored is not None
+    assert restored.final_status == snap_agent.final_status
+    assert len(restored.execution_trace) == len(snap_agent.execution_trace)
+    clear_ui_session_snapshot()
+
     # 7. Reset clears sandbox fingerprints
     session: dict = {k: {"x"} for k in SANDBOX_FINGERPRINT_KEYS}
     session["webhook_events_seen"] = {"wh-1"}
@@ -425,6 +436,35 @@ def main() -> None:
         catalogue=cat_demo,
     )
     assert bot_res.get("intent") == "ORDER"
+
+    confirm_phone = "+628999111"
+    pending_res = process_inbound_message(
+        from_phone=confirm_phone,
+        message_text="pisgor 3 teh manis 2",
+        customer_name=None,
+        source="smoke_test",
+        catalogue=cat_demo,
+    )
+    assert pending_res.get("intent") == "CONFIRM_PENDING"
+    assert pending_res.get("gaps")
+    name_res = process_inbound_message(
+        from_phone=confirm_phone,
+        message_text="Demo Smoke",
+        customer_name=None,
+        source="smoke_test",
+        catalogue=cat_demo,
+    )
+    assert name_res.get("intent") == "CONFIRM_PENDING"
+    assert not name_res.get("gaps")
+    confirm_res = process_inbound_message(
+        from_phone=confirm_phone,
+        message_text="ya",
+        customer_name=None,
+        source="smoke_test",
+        catalogue=cat_demo,
+    )
+    assert confirm_res.get("intent") == "ORDER"
+    assert confirm_res.get("order")
     oid = bot_res["order"]["order_id"]
     assert bot_res["order"]["amount_expected"] == 34000
     assert event_store.list_outbound_messages(3)
@@ -457,6 +497,37 @@ def main() -> None:
     assert "PARSE_ORDERS" in tools_hit
     bot_reco = [r for r in (s_bot.reconciliation_results or []) if str(r.get("order_id", "")).startswith("ORD-BOT")]
     assert bot_reco, "bot orders should appear in reconciliation"
+
+    # Mock payment links use deploy URL, not localhost:8000
+    os.environ["WARUNGFLOW_ENV"] = "production"
+    from tools.doku_signature import build_checkout_signature, minify_json_body
+    from tools.public_url import (
+        doku_checkout_page_url,
+        mock_payment_page_url,
+        resolve_public_base_url,
+    )
+
+    base = resolve_public_base_url()
+    pay_link = mock_payment_page_url("ORD-BOT-10000")
+    assert "mock_pay=ORD-BOT-10000" in pay_link
+    assert "localhost:8000" not in pay_link
+    assert "43.157.208.68:8501" in pay_link or base.endswith(":8501")
+
+    doku_link = doku_checkout_page_url("ORD-BOT-10000")
+    assert "doku_pay=ORD-BOT-10000" in doku_link
+
+    body = minify_json_body(
+        {"order": {"amount": 10000, "invoice_number": "INV1"}, "payment": {"payment_due_date": 60}}
+    )
+    sig = build_checkout_signature(
+        client_id="cid",
+        secret_key="secret",
+        request_id="req-1",
+        request_timestamp="2020-08-11T08:45:42Z",
+        request_target="/checkout/v1/payment",
+        request_body=body,
+    )
+    assert sig.startswith("HMACSHA256=")
 
     # 10–11. Exports and credentials-free mock
     assert (OUTPUT_DIR / "execution_trace.csv").is_file()

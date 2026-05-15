@@ -11,6 +11,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard import (
+    catalogue_metrics_html,
     hint_box_html,
     page_stack_close_html,
     page_stack_open_html,
@@ -241,10 +242,13 @@ def render_product_catalogue_page() -> None:
     cat = _cat()
     val = validate_catalogue_tool(cat)
     active_n = sum(1 for r in cat if r.get("is_active", True))
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total produk", len(cat))
-    m2.metric("Aktif", active_n)
-    m3.metric("Nonaktif", len(cat) - active_n)
+    st.markdown(
+        catalogue_metrics_html(
+            total=len(cat), active=active_n, inactive=len(cat) - active_n
+        ),
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="wf-spacer-sm"></div>', unsafe_allow_html=True)
 
     if val.get("warnings"):
         for w in val["warnings"]:
@@ -357,5 +361,5 @@ def render_product_catalogue_page() -> None:
     st.markdown(page_stack_close_html(), unsafe_allow_html=True)
     st.caption(
         "Setelah mengubah katalog, analisis otomatis refresh — coba pesan "
-        "'nasgor 2' di WhatsApp Bot untuk cek harga terbaru."
+        "'nasgor 2' di Simulasi → Chat WhatsApp untuk cek harga terbaru."
     )

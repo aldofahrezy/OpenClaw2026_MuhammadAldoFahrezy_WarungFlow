@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import re
 from typing import Any
 
 from config import RuntimeConfig
@@ -266,14 +267,16 @@ h1, h2, h3, h4, h5, h6 {
 [data-testid="stDataFrame"] { font-size: 0.88rem !important; }
 div[data-testid="stMarkdownContainer"] p { line-height: 1.55; }
 [data-testid="stStatusWidget"] { font-size: 0.9rem !important; }
-.wf-page-stack { display: flex; flex-direction: column; gap: 1.35rem; }
+.wf-page-stack { display: flex; flex-direction: column; gap: 1.65rem; }
+.wf-section-block { margin-bottom: 0.5rem; }
 .wf-section-header {
-  display: flex; align-items: flex-start; gap: 0.75rem;
-  padding: 0.9rem 1.1rem; margin-bottom: -1px;
+  display: flex; align-items: flex-start; gap: 0.85rem;
+  padding: 1rem 1.15rem; margin: 0 0 0 0;
   border: 1px solid var(--wf-outline-variant);
   border-radius: 12px 12px 0 0;
   background: var(--wf-surface-low);
 }
+.wf-page-stack .wf-section-header:not(:first-child) { margin-top: 0.35rem; }
 .wf-section-header--accent {
   background: linear-gradient(135deg, #e8f5ef 0%, #d1fae5 100%);
   border-color: #a7d4bc;
@@ -300,13 +303,16 @@ div[data-testid="stMarkdownContainer"] p { line-height: 1.55; }
   border: 1px solid var(--wf-outline-variant) !important;
   border-radius: 0 0 12px 12px !important;
   border-top: none !important;
-  padding: 1rem 1.1rem 1.1rem !important;
-  margin-bottom: 1.35rem !important;
+  padding: 1.15rem 1.2rem 1.25rem !important;
+  margin-bottom: 1.5rem !important;
   box-shadow: 0 2px 8px rgba(11, 28, 48, 0.04);
 }
 .wf-section-header + [data-testid="stVerticalBlockBorderWrapper"] {
   margin-top: 0 !important;
 }
+[data-testid="column"] { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+[data-testid="column"]:first-child { padding-left: 0 !important; }
+[data-testid="column"]:last-child { padding-right: 0 !important; }
 .wf-standalone-card {
   background: var(--wf-surface);
   border: 1px solid var(--wf-outline-variant);
@@ -333,13 +339,149 @@ div[data-testid="stMarkdownContainer"] p { line-height: 1.55; }
   margin: 0 0 0.75rem 0;
 }
 hr, [data-testid="stMarkdownContainer"] hr { display: none !important; }
-.stTabs [data-baseweb="tab-list"] { gap: 0.35rem; background: transparent; }
+.stTabs { margin-bottom: 0.5rem !important; }
+.stTabs [data-baseweb="tab-list"] {
+  gap: 0.5rem !important; background: transparent !important;
+  padding: 0.25rem 0 0.65rem 0 !important; flex-wrap: wrap !important;
+}
 .stTabs [data-baseweb="tab"] {
-  border-radius: 8px !important; font-weight: 600 !important;
+  border-radius: 10px !important; font-weight: 600 !important;
   background: var(--wf-surface-low) !important;
+  padding: 0.55rem 1.1rem !important; min-height: 2.5rem !important;
+  margin: 0 !important; border: 1px solid var(--wf-outline-variant) !important;
 }
 .stTabs [aria-selected="true"] {
   background: var(--wf-primary) !important; color: #fff !important;
+  border-color: var(--wf-primary) !important;
+}
+.stTabs [data-baseweb="tab-panel"] { padding-top: 1.1rem !important; }
+[data-testid="stButton"] button {
+  padding: 0.5rem 1rem !important; min-height: 2.5rem !important;
+  font-weight: 600 !important; line-height: 1.35 !important;
+}
+[data-testid="stSidebar"] .stButton button {
+  padding: 0.45rem 0.85rem !important;
+}
+.wf-subsection-title {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 0.92rem; font-weight: 700; color: var(--wf-on-surface);
+  margin: 0 0 0.65rem 0; padding: 0;
+}
+.wf-chat-columns { margin-top: 0.25rem; }
+.wf-spacer-sm { height: 0.85rem; }
+.wf-spacer-md { height: 1.25rem; }
+.wf-catalogue-metrics .wf-kpi-card {
+  border-width: 2px; text-align: center;
+}
+.wf-catalogue-metrics .wf-kpi-card--primary {
+  background: linear-gradient(160deg, #e8f5ef 0%, #ffffff 55%);
+  border-color: #00875a;
+}
+.wf-catalogue-metrics .wf-kpi-card--active {
+  background: linear-gradient(160deg, #eff4ff 0%, #ffffff 55%);
+  border-color: #3b82f6;
+}
+.wf-catalogue-metrics .wf-kpi-card--inactive {
+  background: linear-gradient(160deg, #f8fafc 0%, #ffffff 55%);
+  border-color: #94a3b8;
+}
+.wf-catalogue-metrics .wf-kpi-value { font-size: 2rem; color: var(--wf-primary); }
+.wf-catalogue-metrics .wf-kpi-card--active .wf-kpi-value { color: #1d4ed8; }
+.wf-catalogue-metrics .wf-kpi-card--inactive .wf-kpi-value { color: #64748b; }
+.wf-wa-hero {
+  border-radius: 14px; padding: 1rem 1.15rem 1.1rem;
+  background: linear-gradient(135deg, #dcf8c6 0%, #e8f5ef 45%, #ffffff 100%);
+  border: 2px solid #25d366; margin-bottom: 1.15rem;
+  box-shadow: 0 4px 16px rgba(0, 107, 71, 0.12);
+}
+.wf-wa-hero-label {
+  display: flex; align-items: center; gap: 0.45rem;
+  font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #128c7e; margin: 0 0 0.65rem 0;
+}
+.wf-wa-hero-body {
+  font-size: 0.95rem; line-height: 1.55; color: var(--wf-on-surface);
+  white-space: pre-wrap; word-break: break-word; margin: 0;
+}
+.wf-wa-hero-meta { font-size: 0.75rem; color: var(--wf-secondary); margin: 0.65rem 0 0 0; }
+.wf-wa-link {
+  color: #128c7e; font-weight: 600; word-break: break-all;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.wf-wa-link:hover { color: var(--wf-primary); }
+.wf-wa-hero--empty {
+  background: var(--wf-surface-low); border: 1px dashed var(--wf-outline-variant);
+  color: var(--wf-secondary); font-size: 0.88rem; line-height: 1.5;
+}
+.wf-wa-bubble-wrap { display: flex; flex-direction: column; gap: 0.65rem; max-height: 420px; overflow-y: auto; }
+.wf-wa-bubble {
+  max-width: 92%; padding: 0.65rem 0.85rem; border-radius: 12px;
+  font-size: 0.86rem; line-height: 1.5; word-break: break-word;
+}
+.wf-wa-bubble--out {
+  align-self: flex-end; background: #dcf8c6; border: 1px solid #b8e0a8;
+  border-bottom-right-radius: 4px; color: #0b1c30;
+}
+.wf-wa-bubble--in {
+  align-self: flex-start; background: #fff; border: 1px solid var(--wf-outline-variant);
+  border-bottom-left-radius: 4px;
+}
+.wf-wa-bubble-time { font-size: 0.68rem; color: var(--wf-secondary); margin-top: 0.35rem; }
+.wf-chat-layout { display: flex; gap: 0.85rem; min-height: 360px; }
+.wf-chat-rooms {
+  flex: 0 0 220px; max-width: 240px;
+  border-right: 1px solid var(--wf-outline-variant);
+  padding-right: 0.65rem; max-height: 480px; overflow-y: auto;
+}
+.wf-chat-room {
+  display: block; width: 100%; text-align: left;
+  padding: 0.65rem 0.75rem; margin-bottom: 0.45rem;
+  border-radius: 10px; border: 1px solid var(--wf-outline-variant);
+  background: var(--wf-surface); cursor: pointer;
+  font-family: inherit;
+}
+.wf-chat-room:hover { background: var(--wf-surface-low); }
+.wf-chat-room--active {
+  border-color: #25d366; background: linear-gradient(135deg, #e8f5ef, #fff);
+  box-shadow: 0 2px 8px rgba(0, 107, 71, 0.1);
+}
+.wf-chat-room-name { font-size: 0.88rem; font-weight: 700; color: var(--wf-on-surface); margin: 0 0 0.15rem 0; }
+.wf-chat-room-phone { font-size: 0.72rem; color: var(--wf-secondary); margin: 0 0 0.25rem 0; }
+.wf-chat-room-preview { font-size: 0.75rem; color: var(--wf-secondary); margin: 0; line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+div:has(> .wf-chat-rooms-marker) .stButton { margin-bottom: 0.4rem; width: 100%; }
+div:has(> .wf-chat-rooms-marker) .stButton > button {
+  width: 100% !important; min-height: 4.25rem !important; height: auto !important;
+  padding: 0.65rem 0.8rem !important; border-radius: 10px !important;
+  text-align: left !important; justify-content: flex-start !important;
+  white-space: pre-line !important; line-height: 1.35 !important;
+  font-size: 0.82rem !important; font-weight: 500 !important;
+}
+div:has(> .wf-chat-rooms-marker) .stButton > button[kind="primary"] {
+  border-color: #25d366 !important;
+  background: linear-gradient(135deg, #e8f5ef 0%, #ffffff 100%) !important;
+  color: var(--wf-on-surface) !important;
+  box-shadow: 0 2px 8px rgba(0, 107, 71, 0.12) !important;
+}
+div:has(> .wf-chat-rooms-marker) .stButton > button[kind="secondary"] {
+  background: var(--wf-surface) !important;
+  border: 1px solid var(--wf-outline-variant) !important;
+}
+div:has(> .wf-chat-rooms-marker) .stButton > button:hover {
+  border-color: #25d366 !important;
+  background: var(--wf-surface-low) !important;
+}
+.wf-chat-thread-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.wf-chat-thread-head {
+  padding: 0.65rem 0.85rem; margin-bottom: 0.65rem;
+  border-radius: 10px; background: var(--wf-surface-low);
+  border: 1px solid var(--wf-outline-variant);
+}
+.wf-chat-thread-head h4 { margin: 0 0 0.2rem 0; font-size: 0.95rem; font-weight: 700; }
+.wf-chat-thread-head p { margin: 0; font-size: 0.78rem; color: var(--wf-secondary); }
+.wf-wa-thread {
+  display: flex; flex-direction: column; gap: 0.55rem;
+  max-height: 420px; overflow-y: auto; padding: 0.25rem 0.15rem;
 }
 .wf-rec-list { display: flex; flex-direction: column; gap: 0.85rem; }
 .wf-rec-card {
@@ -355,14 +497,150 @@ hr, [data-testid="stMarkdownContainer"] hr { display: none !important; }
 .wf-rec-title { margin: 0 0 0.35rem 0; font-size: 0.98rem; font-weight: 700; color: var(--wf-on-surface); }
 .wf-rec-why { margin: 0 0 0.5rem 0; font-size: 0.85rem; color: var(--wf-secondary); line-height: 1.45; }
 .wf-rec-steps {
-  margin: 0; padding-left: 1.15rem; font-size: 0.86rem; line-height: 1.55; color: var(--wf-on-surface);
+  margin: 0; padding-left: 1.15rem; font-size: 0.86rem; line-height: 1.65; color: var(--wf-on-surface);
 }
+.wf-rec-steps li { margin-bottom: 0.35rem; }
+.wf-rec-steps strong { color: var(--wf-primary); font-weight: 700; }
 </style>
 """
 
 
 def _esc(s: Any) -> str:
     return html.escape(str(s), quote=True)
+
+
+def _inline_md(s: str) -> str:
+    """Render **bold** in HTML-safe recommendation text."""
+    parts = re.split(r"(\*\*.+?\*\*)", str(s))
+    out: list[str] = []
+    for part in parts:
+        if part.startswith("**") and part.endswith("**") and len(part) > 4:
+            out.append(f"<strong>{_esc(part[2:-2])}</strong>")
+        else:
+            out.append(_esc(part))
+    return "".join(out)
+
+
+def catalogue_metrics_html(*, total: int, active: int, inactive: int) -> str:
+    return f"""
+<div class="wf-kpi-grid wf-catalogue-metrics">
+  <div class="wf-kpi-card wf-kpi-card--primary">
+    <p class="wf-kpi-label">Total produk</p>
+    <p class="wf-kpi-value">{total}</p>
+  </div>
+  <div class="wf-kpi-card wf-kpi-card--active">
+    <p class="wf-kpi-label">Aktif</p>
+    <p class="wf-kpi-value">{active}</p>
+  </div>
+  <div class="wf-kpi-card wf-kpi-card--inactive">
+    <p class="wf-kpi-label">Nonaktif</p>
+    <p class="wf-kpi-value">{inactive}</p>
+  </div>
+</div>
+"""
+
+
+_URL_IN_TEXT = re.compile(r"(https?://[^\s<]+)")
+
+
+def _whatsapp_segment_html(seg: str) -> str:
+    if seg.startswith("*") and seg.endswith("*") and len(seg) > 2:
+        return f"<strong>{_esc(seg[1:-1])}</strong>"
+    out: list[str] = []
+    for part in _URL_IN_TEXT.split(seg):
+        if part.startswith("http://") or part.startswith("https://"):
+            href = _esc(part)
+            out.append(
+                f'<a class="wf-wa-link" href="{href}" target="_blank" rel="noopener noreferrer">{href}</a>'
+            )
+        elif part:
+            out.append(_esc(part))
+    return "".join(out)
+
+
+def _whatsapp_body_html(text: str) -> str:
+    """Escape and preserve line breaks; support *whatsapp bold* and clickable URLs."""
+    from tools.public_url import rewrite_localhost_urls
+
+    raw = rewrite_localhost_urls(str(text or ""))
+    lines = raw.split("\n")
+    parts: list[str] = []
+    for line in lines:
+        segs = re.split(r"(\*.+?\*)", line)
+        line_html = "".join(_whatsapp_segment_html(seg) for seg in segs)
+        parts.append(line_html)
+    return "<br>".join(parts)
+
+
+def whatsapp_reply_hero_html(message: dict[str, Any] | None) -> str:
+    if not message or not message.get("text"):
+        return """
+<div class="wf-wa-hero wf-wa-hero--empty">
+  <p class="wf-wa-hero-label"><span class="wf-ms" style="font-size:16px;vertical-align:middle;">smart_toy</span> Balasan WarungFlow</p>
+  <p style="margin:0;">Belum ada balasan bot — kirim pesanan simulasi di atas untuk melihat respons otomatis (total, Order ID, link bayar).</p>
+</div>
+"""
+    ts = str(message.get("timestamp") or "")[:16].replace("T", " ")
+    oid = message.get("order_id") or ""
+    meta = f"Terakhir dikirim · {ts}" if ts else "Balasan terbaru"
+    if oid:
+        meta += f" · {oid}"
+    body = _whatsapp_body_html(str(message.get("text") or ""))
+    return f"""
+<div class="wf-wa-hero">
+  <p class="wf-wa-hero-label"><span class="wf-ms" style="font-size:16px;vertical-align:middle;">smart_toy</span> Balasan WarungFlow</p>
+  <p class="wf-wa-hero-body">{body}</p>
+  <p class="wf-wa-hero-meta">{_esc(meta)}</p>
+</div>
+"""
+
+
+def whatsapp_bubbles_html(
+    messages: list[dict[str, Any]], *, variant: str = "out", limit: int = 6
+) -> str:
+    if not messages:
+        return '<p class="wf-empty">Belum ada pesan.</p>'
+    cls = "wf-wa-bubble--out" if variant == "out" else "wf-wa-bubble--in"
+    bubbles: list[str] = []
+    for msg in messages[:limit]:
+        ts = str(msg.get("timestamp") or "")[:16].replace("T", " ")
+        label = msg.get("customer_name") if variant == "in" else "Warung Bu Sari"
+        body = _whatsapp_body_html(str(msg.get("text") or ""))
+        bubbles.append(
+            f"""
+<div class="wf-wa-bubble {cls}">
+  <div style="font-size:0.72rem;font-weight:700;color:var(--wf-secondary);margin-bottom:0.25rem;">{_esc(label or "")}</div>
+  {body}
+  <div class="wf-wa-bubble-time">{_esc(ts)}</div>
+</div>"""
+        )
+    return f'<div class="wf-wa-bubble-wrap">{"".join(bubbles)}</div>'
+
+
+def whatsapp_thread_html(messages: list[dict[str, Any]]) -> str:
+    """Chronological chat timeline (in + out) for one phone number."""
+    if not messages:
+        return '<p class="wf-empty">Belum ada pesan dalam ruangan ini.</p>'
+    bubbles: list[str] = []
+    for msg in messages:
+        direction = msg.get("direction") or "in"
+        cls = "wf-wa-bubble--out" if direction == "out" else "wf-wa-bubble--in"
+        ts = str(msg.get("timestamp") or "")[:16].replace("T", " ")
+        label = (
+            "Warung Bu Sari"
+            if direction == "out"
+            else str(msg.get("customer_name") or "Pelanggan")
+        )
+        body = _whatsapp_body_html(str(msg.get("text") or ""))
+        bubbles.append(
+            f"""
+<div class="wf-wa-bubble {cls}">
+  <div style="font-size:0.72rem;font-weight:700;color:var(--wf-secondary);margin-bottom:0.25rem;">{_esc(label)}</div>
+  {body}
+  <div class="wf-wa-bubble-time">{_esc(ts)}</div>
+</div>"""
+        )
+    return f'<div class="wf-wa-thread">{"".join(bubbles)}</div>'
 
 
 STATUS_LABELS: dict[str, str] = {
@@ -531,7 +809,7 @@ def system_status_banner_html(
     elif data_stale:
         css = "wf-status-warn"
         title = "Data berubah — perlu refresh"
-        parts = [ui_detail or "Klik Force Refresh Analysis di sidebar."]
+        parts = [ui_detail or "Buka halaman Simulasi → Paksa refresh analisis."]
     elif agent and agent.final_status == "ERROR":
         css = "wf-status-error"
         title = "Critical Error"
@@ -822,7 +1100,7 @@ def build_action_recommendations(
                     "Buka **Rekonsiliasi** → cek kolom Sisa untuk nominal yang harus dibayar.",
                     "Kirim pengingat WhatsApp (lihat **Laporan** → Pengingat pembayaran).",
                     "Setelah pelanggan transfer, pastikan mutasi QRIS masuk — lalu **Paksa refresh analisis**.",
-                    "Demo cepat: sidebar → **Bayar Kevin (cocok)** atau **WhatsApp Bot** → simulasi bayar.",
+                    "Demo cepat: **Simulasi** → tab Demo cepat → **Bayar Kevin (cocok)**.",
                 ],
             }
         )
@@ -838,7 +1116,7 @@ def build_action_recommendations(
                 "steps": [
                     "Cocokkan catatan transfer dengan sisa tagihan di tabel Rekonsiliasi.",
                     "Hubungi pelanggan untuk melunasi kekurangan — gunakan draft di Laporan.",
-                    "Jika sudah bayar, tambahkan mutasi di sidebar **Sandbox** → Tambah pembayaran.",
+                    "Jika sudah bayar, tambahkan mutasi di **Simulasi** → tab Pembayaran QRIS.",
                 ],
             }
         )
@@ -869,7 +1147,7 @@ def build_action_recommendations(
                 "why": "Belum ada mutasi yang cocok dengan tagihan atau nominal tidak pasti.",
                 "steps": [
                     "Cari mutasi QRIS/transfer dengan nama pelanggan atau nomor order di catatan bank.",
-                    "Tambahkan pembayaran manual di sidebar jika uang sudah masuk.",
+                    "Tambahkan pembayaran di **Simulasi** → tab Pembayaran QRIS.",
                     "Jika produk tidak dikenal, tambahkan ke **Katalog** lalu refresh analisis.",
                 ],
             }
@@ -952,7 +1230,7 @@ def build_action_recommendations(
                 "title": f"Lengkapi: {name}",
                 "why": "Agen belum menghasilkan output ini pada analisis terakhir.",
                 "steps": [
-                    "Klik **Paksa refresh analisis** di sidebar.",
+                    "Buka **Simulasi** → **Paksa refresh analisis**.",
                     "Buka **Laporan** → Validasi untuk memastikan semua pemeriksaan lulus.",
                 ],
             }
@@ -986,7 +1264,7 @@ def recommendations_html(items: list[dict[str, Any]]) -> str:
         pri = str(it.get("priority") or "medium")
         color = border.get(pri, "#64748b")
         steps = it.get("steps") or []
-        step_lis = "".join(f"<li>{_esc(s)}</li>" for s in steps)
+        step_lis = "".join(f"<li>{_inline_md(s)}</li>" for s in steps)
         cards.append(
             f"""
 <div class="wf-rec-card" style="border-left:4px solid {color};">
@@ -1011,7 +1289,7 @@ def collect_review_items(state: AgentState) -> dict[str, Any]:
                 "Agen berhenti karena terlalu banyak langkah berulang (biasanya cek status link bayar)."
             )
             actions.append(
-                "Klik **Paksa refresh analisis** di sidebar — perbaikan terbaru mencegah loop ini."
+                "Buka **Simulasi** → **Paksa refresh analisis** — perbaikan terbaru mencegah loop ini."
             )
             severity = "warn"
         else:
@@ -1046,7 +1324,7 @@ def collect_review_items(state: AgentState) -> dict[str, Any]:
             + (f" ({', '.join(names)})" if names else "")
         )
         actions.append(
-            "Di **WhatsApp Bot** → simulasikan bayar, atau di sidebar **Bayar Kevin (cocok)** untuk demo."
+            "Di **Simulasi** → tab Chat WhatsApp atau Demo cepat → **Bayar Kevin (cocok)**."
         )
         if severity != "warn":
             severity = "info"
@@ -1070,7 +1348,7 @@ def collect_review_items(state: AgentState) -> dict[str, Any]:
         severity = "warn"
 
     if not actions:
-        actions.append("Klik **Paksa refresh analisis** di sidebar setelah memperbaiki data.")
+        actions.append("Buka **Simulasi** → **Paksa refresh analisis** setelah memperbaiki data.")
 
     return {"severity": severity, "reasons": reasons, "actions": actions}
 

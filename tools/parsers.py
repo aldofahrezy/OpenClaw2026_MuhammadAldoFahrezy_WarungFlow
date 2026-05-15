@@ -83,6 +83,16 @@ def _extract_customer_and_payer(text: str) -> tuple[str | None, str | None, str]
         customer = m_payer.group(2).strip()
         remainder = remainder[: m_payer.start()].strip()
         return customer, payer, remainder
+    for pat in (
+        r"\batas\s+nama\s+([^\n,.]+?)(?:\s*$|\s*,)",
+        r"\ban\.?\s+([^\n,.]+?)(?:\s*$|\s*,)",
+        r"\ba\.n\.?\s+([^\n,.]+?)(?:\s*$|\s*,)",
+    ):
+        m_named = re.search(pat, remainder, re.IGNORECASE)
+        if m_named:
+            customer = m_named.group(1).strip()
+            remainder = (remainder[: m_named.start()] + remainder[m_named.end() :]).strip()
+            break
     m_dash = re.search(r"\s*-\s*([^\n]+?)\s*$", remainder)
     if m_dash:
         customer = m_dash.group(1).strip()

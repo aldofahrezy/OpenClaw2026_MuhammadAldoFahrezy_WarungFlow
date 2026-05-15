@@ -45,20 +45,8 @@ from dashboard import (
 )
 from dashboard_reports import render_reports_analytics
 from dashboard_catalogue import render_product_catalogue_page
-from dashboard_whatsapp import render_whatsapp_bot_page
-from datetime import date
-
-from live_sandbox import (
-    EXPENSE_CATEGORIES,
-    add_expense_shock_demo,
-    add_matching_payment_demo,
-    add_partial_payment_demo,
-    add_unpaid_order_demo,
-    append_expense,
-    append_payment_transaction,
-    append_whatsapp_order,
-    simulate_doku_payment_success,
-)
+from dashboard_doku_checkout import handle_doku_return, render_doku_checkout_page
+from dashboard_simulator import render_simulator_page
 from tools.parsers import strip_internal_meta
 from session_runtime import (
     get_agent_state,
@@ -66,20 +54,48 @@ from session_runtime import (
     load_sample_data_into_session,
     mark_data_changed,
     process_pending_agent_run,
-    reset_demo_session,
+    reset_bot_demo_history,
+    save_ui_session_snapshot,
     schedule_initial_run,
 )
+from tools.bot_service import simulate_mock_payment
 
 st.set_page_config(
     page_title="WarungFlow - Main Dashboard",
     page_icon="🏪",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
 def _is_production_ui() -> bool:
     return os.getenv("WARUNGFLOW_ENV", "").strip().lower() in {"production", "prod"}
+
+
+def _handle_mock_payment_deep_link() -> None:
+    """Process ?mock_pay=ORD-BOT-xxx from WhatsApp mock payment links (works on Streamlit deploy)."""
+    oid = (st.query_params.get("mock_pay") or "").strip()
+    if not oid:
+        return
+    done_key = f"_mock_pay_handled_{oid}"
+    if st.session_state.get(done_key):
+        return
+
+    res = simulate_mock_payment(order_id=oid)
+    st.session_state[done_key] = True
+    st.session_state.ui_nav = "simulator"
+    st.session_state._mock_pay_flash = {**res, "order_id": oid}
+
+    if res.get("status") == "ok":
+        mark_data_changed("mock_pay_deep_link")
+        if st.session_state.get("auto_refresh_enabled", True):
+            st.session_state._pending_agent_run = True
+            st.session_state._pending_trigger = "mock_payment"
+
+    try:
+        del st.query_params["mock_pay"]
+    except Exception:
+        pass
 
 
 def _inject_assets() -> None:
@@ -91,6 +107,18 @@ def _inject_assets() -> None:
 
 init_session_defaults()
 load_sample_data_into_session()
+_handle_mock_payment_deep_link()
+
+_doku_pay_oid = (st.query_params.get("doku_pay") or "").strip()
+if _doku_pay_oid:
+    _inject_assets()
+    if render_doku_checkout_page(_doku_pay_oid):
+        st.stop()
+
+_doku_return_oid = (st.query_params.get("doku_return") or "").strip()
+if _doku_return_oid:
+    handle_doku_return(_doku_return_oid)
+
 schedule_initial_run()
 
 if "_bootstrapped" not in st.session_state or not st.session_state._bootstrapped:
@@ -100,8 +128,9 @@ if "_bootstrapped" not in st.session_state or not st.session_state._bootstrapped
 prod_ui = _is_production_ui()
 _inject_assets()
 
-cfg = RuntimeConfig.load()
-os.environ["PAYMENT_MODE"] = st.session_state.payment_mode_choice
+cfg = RuntimeConfig.load(
+    payment_mode_choice=st.session_state.get("payment_mode_choice", "mock")
+)
 
 # ----- Sidebar -----
 with st.sidebar:
@@ -121,8 +150,8 @@ with st.sidebar:
     nav = st.session_state.ui_nav
     for key, label in (
         ("dashboard", "Beranda"),
+        ("simulator", "Simulasi"),
         ("catalogue", "Katalog"),
-        ("whatsapp", "WhatsApp Bot"),
         ("trace", "Jejak agen"),
         ("reconciliation", "Rekonsiliasi"),
         ("reports", "Laporan"),
@@ -134,178 +163,20 @@ with st.sidebar:
             type="primary" if nav == key else "secondary",
         ):
             st.session_state.ui_nav = key
+            save_ui_session_snapshot()
             st.rerun()
 
     st.markdown("---")
-    st.caption("Kontrol analisis")
-    st.session_state.auto_refresh_enabled = st.toggle(
-        "Perbarui otomatis saat data berubah",
-        value=bool(st.session_state.get("auto_refresh_enabled", True)),
-        key="wf_auto_refresh",
-    )
-    if st.button("Paksa refresh analisis", use_container_width=True, key="wf_force_refresh"):
-        st.session_state._pending_agent_run = True
-        st.session_state._pending_trigger = "manual_refresh"
-        st.session_state.ui_status = "Auto-refreshing"
-        st.session_state.ui_status_detail = "Manual refresh"
-        st.rerun()
-    if st.button("Reset demo", use_container_width=True, key="wf_reset_demo"):
-        reset_demo_session()
+    if st.button(
+        "Reset riwayat demo",
+        key="sidebar_reset_bot_history",
+        use_container_width=True,
+        help="Hapus chat WhatsApp simulasi, pesanan bot, dan pembayaran mock di runtime/.",
+    ):
+        reset_bot_demo_history()
+        save_ui_session_snapshot()
         st.rerun()
 
-    st.markdown('<div class="wf-help-btn-wrap">', unsafe_allow_html=True)
-    st.markdown(
-        """
-<a href="#" style="display:flex;align-items:center;justify-content:center;gap:0.35rem;
-padding:0.45rem 0.75rem;border:1px solid #bdcac0;border-radius:0.125rem;text-decoration:none;
-color:#006b47;font-size:0.75rem;font-weight:600;">Pusat bantuan</a>
-""",
-        unsafe_allow_html=True,
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    agent_preview = get_agent_state()
-    with st.expander("Profil warung", expanded=False):
-        profile = None
-        if agent_preview and agent_preview.merchant_profile:
-            profile = agent_preview.merchant_profile
-        elif st.session_state.merchant_profile:
-            profile = st.session_state.merchant_profile
-        if profile:
-            st.markdown(f"**Nama warung:** {profile.get('merchant_name', 'N/A')}")
-            st.markdown(f"**Pemilik:** {profile.get('owner_name', 'N/A')}")
-            st.markdown(f"**Kota:** {profile.get('city', 'N/A')}")
-            st.markdown(f"**Jenis usaha:** {profile.get('business_type', 'N/A')}")
-            methods = ", ".join(profile.get("payment_methods", []))
-            st.markdown(f"**Metode bayar:** {methods}")
-            st.markdown(f"**Target:** {profile.get('financing_goal', 'N/A')}")
-        else:
-            st.caption("Data contoh dimuat otomatis saat pertama kali dibuka.")
-
-    st.markdown("**Mode pembayaran**")
-    pay_choice = st.selectbox(
-        "Mode pembayaran",
-        options=["mock", "doku_sandbox"],
-        index=0 if st.session_state.payment_mode_choice == "mock" else 1,
-        format_func=lambda x: "Mock (demo aman)" if x == "mock" else "DOKU Sandbox",
-        label_visibility="collapsed",
-        key="wf_payment_mode_select",
-    )
-    prev_pay = st.session_state.get("_last_payment_mode_choice")
-    st.session_state.payment_mode_choice = pay_choice
-    os.environ["PAYMENT_MODE"] = pay_choice
-    if prev_pay is not None and pay_choice != prev_pay:
-        st.session_state._last_payment_mode_choice = pay_choice
-        mark_data_changed("payment_mode_change")
-    else:
-        st.session_state._last_payment_mode_choice = pay_choice
-
-    cfg = RuntimeConfig.load()
-    if prod_ui:
-        st.caption(
-            f"{cfg.warungflow_env} · LLM {cfg.llm_mode} · Pay {cfg.payment_mode}"
-        )
-    else:
-        with st.expander("Environment (masked)", expanded=False):
-            for line in cfg.env_summary_masked():
-                st.code(line, language="text")
-            if cfg.warnings:
-                for w in cfg.warnings:
-                    st.warning(w)
-
-    with st.expander("Sandbox data langsung", expanded=False):
-        st.caption("Tambah pesanan, pembayaran, atau pengeluaran. Agen akan menghitung ulang jika perbarui otomatis aktif.")
-        wa_msg = st.text_area(
-            "Pesanan WhatsApp",
-            placeholder="Mbak, nasi goreng 2 total 44000, bayar nanti malam - Kevin",
-            height=72,
-            key="sandbox_wa_order",
-        )
-        if st.button("Tambah pesanan", key="sandbox_add_order", use_container_width=True):
-            if append_whatsapp_order(wa_msg):
-                st.success("Pesanan ditambahkan.")
-            else:
-                st.warning("Kosong atau duplikat — tidak ditambahkan.")
-            st.rerun()
-
-        c1, c2 = st.columns(2)
-        with c1:
-            pay_name = st.text_input("Nama pembayar", value="Kevin", key="sandbox_payer")
-            pay_amt = st.number_input(
-                "Nominal (Rp)", min_value=0, value=44000, step=1000, key="sandbox_amt"
-            )
-        with c2:
-            pay_method = st.selectbox(
-                "Metode", ["QRIS", "transfer", "cash"], key="sandbox_method"
-            )
-            pay_ref = st.text_input(
-                "Catatan / referensi", value="nasi goreng Kevin", key="sandbox_ref"
-            )
-        if st.button("Tambah pembayaran", key="sandbox_add_pay", use_container_width=True):
-            if append_payment_transaction(
-                pay_name, int(pay_amt), pay_method, pay_ref
-            ):
-                st.success("Pembayaran ditambahkan.")
-            else:
-                st.warning("Duplikat — pembayaran tidak ditambahkan lagi.")
-            st.rerun()
-
-        st.markdown("**Tambah pengeluaran**")
-        ex1, ex2 = st.columns(2)
-        with ex1:
-            exp_date = st.date_input(
-                "Tanggal", value=date.today(), key="sandbox_exp_date"
-            )
-            exp_category = st.selectbox(
-                "Kategori",
-                options=list(EXPENSE_CATEGORIES),
-                index=0,
-                key="sandbox_exp_cat",
-            )
-        with ex2:
-            exp_amount = st.number_input(
-                "Nominal (Rp)",
-                min_value=0,
-                value=75_000,
-                step=5000,
-                key="sandbox_exp_amt",
-            )
-            exp_desc = st.text_input(
-                "Keterangan",
-                value="Tambahan belanja ayam",
-                key="sandbox_exp_desc",
-            )
-        if st.button("Tambah pengeluaran", key="sandbox_add_expense", use_container_width=True):
-            if append_expense(
-                exp_category,
-                exp_desc,
-                int(exp_amount),
-                exp_date.isoformat(),
-            ):
-                st.success("Pengeluaran ditambahkan.")
-            else:
-                st.warning("Duplikat — pengeluaran tidak ditambahkan lagi.")
-            st.rerun()
-
-        st.markdown("**Demo cepat**")
-        if st.button("Pesanan Kevin (belum lunas)", key="demo_kevin_order", use_container_width=True):
-            add_unpaid_order_demo()
-            st.rerun()
-        if st.button("Bayar Kevin (cocok)", key="demo_kevin_pay", use_container_width=True):
-            add_matching_payment_demo()
-            st.rerun()
-        if st.button("Bayar sebagian", key="demo_partial", use_container_width=True):
-            add_partial_payment_demo()
-            st.rerun()
-        if st.button("Shock biaya bahan", key="demo_expense_shock", use_container_width=True):
-            add_expense_shock_demo()
-            st.rerun()
-        if st.button("Simulasi webhook DOKU", key="demo_webhook", use_container_width=True):
-            result = simulate_doku_payment_success()
-            st.caption(result)
-            st.rerun()
-
-cfg = RuntimeConfig.load()
 
 # Reactive agent run (initial load, data change, manual refresh)
 if st.session_state.get("_pending_agent_run"):
@@ -330,7 +201,8 @@ if st.session_state.get("_pending_agent_run"):
 state = get_agent_state()
 ui_status = str(st.session_state.get("ui_status") or "Fresh")
 ui_detail = str(st.session_state.get("ui_status_detail") or "")
-data_stale = bool(st.session_state.get("data_stale"))
+pending_run = bool(st.session_state.get("_pending_agent_run"))
+data_stale = bool(st.session_state.get("data_stale")) and not pending_run
 
 h_left, h_mid, h_right = st.columns([2, 2, 2])
 with h_left:
@@ -378,6 +250,25 @@ if cfg.warungflow_env == "production":
         icon="🌐",
     )
 
+_mock_flash = st.session_state.pop("_mock_pay_flash", None)
+if _mock_flash:
+    status = _mock_flash.get("status")
+    oid = _mock_flash.get("order_id") or "pesanan"
+    if status == "ok":
+        ps = _mock_flash.get("payment_status", "PAID")
+        st.success(
+            f"Pembayaran simulasi berhasil untuk order terkait — status **{ps}**. "
+            "Rekonsiliasi di Beranda akan diperbarui.",
+            icon="✅",
+        )
+    elif status == "idempotent_skip":
+        st.info("Pembayaran ini sudah pernah dicatat.", icon="ℹ️")
+    else:
+        st.warning(
+            f"Pembayaran gagal: {_mock_flash.get('detail', status)}",
+            icon="⚠️",
+        )
+
 st.markdown(
     system_status_banner_html(
         cfg, state, ui_status=ui_status, ui_detail=ui_detail, data_stale=data_stale
@@ -398,8 +289,8 @@ if state and (
             st.session_state._pending_trigger = "review_refresh"
             st.rerun()
     with c2:
-        if st.button("Buka WhatsApp Bot", key="review_whatsapp", use_container_width=True):
-            st.session_state.ui_nav = "whatsapp"
+        if st.button("Buka Simulasi", key="review_simulator", use_container_width=True):
+            st.session_state.ui_nav = "simulator"
             st.rerun()
     with c3:
         if st.button("Buka Katalog", key="review_catalogue", use_container_width=True):
@@ -408,9 +299,10 @@ if state and (
     if review.get("reasons"):
         st.caption("Ringkasan: " + " · ".join(review["reasons"][:2]))
 
-if data_stale and not st.session_state.get("_pending_agent_run"):
+if data_stale and not st.session_state.get("auto_refresh_enabled", True):
     st.warning(
-        "Data berubah tetapi perbarui otomatis dimatikan. Klik **Paksa refresh analisis** di sidebar.",
+        "Data berubah tetapi perbarui otomatis dimatikan. Aktifkan toggle di **Simulasi** "
+        "atau klik **Paksa refresh analisis**.",
         icon="🔄",
     )
 
@@ -683,8 +575,8 @@ elif nav == "reconciliation":
 elif nav == "catalogue":
     render_product_catalogue_page()
 
-elif nav == "whatsapp":
-    render_whatsapp_bot_page()
+elif nav == "simulator":
+    render_simulator_page(cfg, prod_ui)
 
 elif nav == "reports":
     render_reports_analytics(state)

@@ -66,10 +66,35 @@ def _has_any_llm_key() -> bool:
     return any((os.getenv(k) or "").strip() for k in keys)
 
 
-def _has_doku_credentials() -> bool:
+def has_doku_credentials() -> bool:
+    """True when DOKU sandbox keys are present in env (always loaded from .env)."""
     cid = (os.getenv("DOKU_CLIENT_ID") or "").strip()
     sec = (os.getenv("DOKU_SECRET_KEY") or "").strip()
     return bool(cid and sec)
+
+
+def resolve_payment_mode(
+    choice: str | None,
+    *,
+    warnings: list[str] | None = None,
+) -> Literal["mock", "doku_sandbox"]:
+    """
+    Resolve payment provider from UI selection (Mode pembayaran).
+
+    Env only supplies credentials (DOKU_*); not PAYMENT_MODE switches.
+    """
+    raw = (choice or "mock").strip().lower()
+    if raw not in {"mock", "doku_sandbox"}:
+        raw = "mock"
+    if raw == "doku_sandbox":
+        if has_doku_credentials():
+            return "doku_sandbox"
+        if warnings is not None:
+            warnings.append(
+                "Mode DOKU Sandbox dipilih tetapi kredensial DOKU belum lengkap; memakai Mock."
+            )
+        return "mock"
+    return "mock"
 
 
 @dataclass
@@ -82,7 +107,7 @@ class RuntimeConfig:
     warnings: list[str] = field(default_factory=list)
 
     @staticmethod
-    def load() -> "RuntimeConfig":
+    def load(*, payment_mode_choice: str | None = None) -> "RuntimeConfig":
         _load_streamlit_secrets_into_environ()
         _load_dotenv_best_effort()
         warnings: list[str] = []
@@ -101,16 +126,7 @@ class RuntimeConfig:
         else:
             llm_mode = "live"
 
-        requested_pay = (os.getenv("PAYMENT_MODE") or "mock").strip().lower()
-        if requested_pay == "doku_sandbox" and not _has_doku_credentials():
-            warnings.append(
-                "PAYMENT_MODE was doku_sandbox but DOKU credentials are incomplete; using mock payments."
-            )
-            payment_mode: Literal["mock", "doku_sandbox"] = "mock"
-        elif requested_pay == "doku_sandbox" and _has_doku_credentials():
-            payment_mode = "doku_sandbox"
-        else:
-            payment_mode = "mock"
+        payment_mode = resolve_payment_mode(payment_mode_choice, warnings=warnings)
 
         return RuntimeConfig(
             llm_mode=llm_mode,
@@ -120,9 +136,11 @@ class RuntimeConfig:
         )
 
     def env_summary_masked(self) -> list[str]:
+        doku_ready = "ready" if has_doku_credentials() else "missing"
         lines = [
             f"LLM_MODE={self.llm_mode}",
-            f"PAYMENT_MODE={self.payment_mode}",
+            f"PAYMENT_MODE={self.payment_mode} (UI)",
+            f"DOKU_CREDENTIALS={doku_ready}",
             f"WARUNGFLOW_ENV={self.warungflow_env}",
             mask_secret("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY")),
             mask_secret("GROQ_API_KEY", os.getenv("GROQ_API_KEY")),

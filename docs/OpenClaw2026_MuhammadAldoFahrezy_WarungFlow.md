@@ -38,7 +38,7 @@ flowchart TD
 - **Orchestrator:** state-driven `decide_next_action()` loop (max **24** steps).
 - **Memory:** `AgentState` + `execution_trace` with `run_id`.
 - **Tools:** 20 registered handlers (load, catalogue, bot sync, reconcile, cashflow, validate, export).
-- **Payment:** Mock provider by default; optional DOKU Sandbox adapter.
+- **Payment:** Mock (`?mock_pay=`) by default; DOKU Sandbox (hosted checkout + Check Status sync via `?doku_pay=`).
 
 ---
 
@@ -53,6 +53,8 @@ flowchart TD
 | WhatsApp bot | Mock order intake for demo |
 | Health score | 0–100 cashflow signal |
 | Mock mode | Runs without API keys |
+| DOKU Sandbox | Checkout API + status poll (Best Payment track) |
+| Simulasi page | WhatsApp bot + QRIS + payment mode in one place |
 
 **Stack:** Python 3.11+, Streamlit, pandas, rapidfuzz, Altair, FastAPI (bot), python-dotenv.
 

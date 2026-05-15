@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -64,6 +65,94 @@ def list_outbound_messages(limit: int = 30) -> list[dict[str, Any]]:
 
 def list_inbound_messages(limit: int = 30) -> list[dict[str, Any]]:
     return list(reversed(_read_jsonl(_path("inbound.jsonl"), limit=limit * 2)))[:limit]
+
+
+def normalize_phone(phone: str | None) -> str:
+    """Canonical room key: digits only so +628… and 628… map to the same chat."""
+    if not phone:
+        return ""
+    digits = re.sub(r"\D", "", str(phone).strip())
+    return digits
+
+
+def display_phone(phone: str | None, phone_key: str | None = None) -> str:
+    """Human-readable phone for UI (prefer stored value, else E.164 from key)."""
+    raw = (phone or "").strip()
+    if raw:
+        return raw
+    key = (phone_key or "").strip()
+    if key.isdigit() and len(key) >= 9:
+        return f"+{key}"
+    return key or "—"
+
+
+def build_chat_threads(limit_rooms: int = 40) -> list[dict[str, Any]]:
+    """Group inbound/outbound messages by customer phone (chat room per number)."""
+    threads: dict[str, dict[str, Any]] = {}
+
+    def ensure(phone: str) -> dict[str, Any]:
+        key = normalize_phone(phone) or "unknown"
+        if key not in threads:
+            threads[key] = {
+                "phone": phone,
+                "phone_key": key,
+                "customer_name": None,
+                "messages": [],
+                "order_ids": [],
+                "last_timestamp": "",
+                "last_preview": "",
+            }
+        return threads[key]
+
+    for m in _read_jsonl(_path("inbound.jsonl"), 5000):
+        phone = str(m.get("from_phone") or "").strip()
+        if not phone:
+            continue
+        t = ensure(phone)
+        if m.get("customer_name"):
+            t["customer_name"] = m["customer_name"]
+        t["messages"].append({**m, "direction": "in"})
+
+    for m in _read_jsonl(_path("outbox.jsonl"), 5000):
+        phone = str(m.get("to_phone") or "").strip()
+        if not phone:
+            continue
+        t = ensure(phone)
+        t["messages"].append({**m, "direction": "out"})
+
+    for o in get_recent_bot_orders(300):
+        phone = str(o.get("customer_phone") or "").strip()
+        if not phone:
+            continue
+        t = ensure(phone)
+        if o.get("customer_name"):
+            t["customer_name"] = o["customer_name"]
+        oid = o.get("order_id")
+        if oid and oid not in t["order_ids"]:
+            t["order_ids"].append(oid)
+
+    result: list[dict[str, Any]] = []
+    for t in threads.values():
+        msgs = sorted(t["messages"], key=lambda x: str(x.get("timestamp") or ""))
+        t["messages"] = msgs
+        if msgs:
+            last = msgs[-1]
+            t["last_timestamp"] = str(last.get("timestamp") or "")
+            preview = str(last.get("text") or "").replace("\n", " ")[:72]
+            t["last_preview"] = preview
+        t["order_ids"] = sorted(t["order_ids"])
+        result.append(t)
+
+    result.sort(key=lambda x: str(x.get("last_timestamp") or ""), reverse=True)
+    return result[:limit_rooms]
+
+
+def get_thread_by_key(phone_key: str) -> dict[str, Any] | None:
+    key = normalize_phone(phone_key) or phone_key
+    for t in build_chat_threads():
+        if t.get("phone_key") == key:
+            return t
+    return None
 
 
 def append_inbound_message(
@@ -168,8 +257,47 @@ def get_recent_payments(limit: int = 50) -> list[dict[str, Any]]:
     return list(reversed(_read_jsonl(_path("payments.jsonl"), limit=limit * 2)))[:limit]
 
 
+def _pending_path() -> Path:
+    return _path("pending_orders.jsonl")
+
+
+def get_pending_order(from_phone: str) -> dict[str, Any] | None:
+    want = normalize_phone(from_phone)
+    if not want:
+        return None
+    for row in reversed(_read_jsonl(_pending_path(), 5000)):
+        if normalize_phone(row.get("from_phone")) == want:
+            return row
+    return None
+
+
+def set_pending_order(from_phone: str, draft: dict[str, Any]) -> dict[str, Any]:
+    phone = (from_phone or "").strip()
+    clear_pending_order(phone)
+    rec = {**draft, "from_phone": phone, "timestamp": _now_iso()}
+    _append_jsonl(_pending_path(), rec)
+    return rec
+
+
+def clear_pending_order(from_phone: str) -> None:
+    want = normalize_phone(from_phone)
+    path = _pending_path()
+    rows = _read_jsonl(path, 10000)
+    path.write_text("", encoding="utf-8")
+    for r in rows:
+        if normalize_phone(r.get("from_phone")) != want:
+            _append_jsonl(path, r)
+
+
 def reset_runtime_events() -> None:
-    for name in ("events.jsonl", "inbound.jsonl", "outbox.jsonl", "orders.jsonl", "payments.jsonl"):
+    for name in (
+        "events.jsonl",
+        "inbound.jsonl",
+        "outbox.jsonl",
+        "orders.jsonl",
+        "payments.jsonl",
+        "pending_orders.jsonl",
+    ):
         p = _path(name)
         if p.is_file():
             p.unlink()
@@ -190,13 +318,17 @@ def next_bot_order_id() -> str:
 
 
 def runtime_snapshot_for_hash() -> dict[str, Any]:
+    """Stable bot fingerprint for change detection (not raw message counts)."""
     orders = get_recent_bot_orders(200)
     payments = get_recent_payments(200)
-    inbound = _read_jsonl(_path("inbound.jsonl"), 500)
     return {
-        "bot_order_count": len(orders),
-        "bot_payment_count": len(payments),
-        "inbound_count": len(inbound),
-        "latest_order_id": orders[-1].get("order_id") if orders else None,
-        "latest_payment_event": payments[-1].get("event_id") if payments else None,
+        "orders": sorted(
+            (
+                str(o.get("order_id") or ""),
+                str(o.get("payment_status") or ""),
+                int(o.get("matched_amount") or 0),
+            )
+            for o in orders
+        ),
+        "payment_events": sorted(str(p.get("event_id") or "") for p in payments),
     }

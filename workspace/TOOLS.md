@@ -47,5 +47,7 @@ Callable tools registered in `agents/tool_handlers.py` (`TOOL_REGISTRY`).
 
 - `tools/catalogue_tools.py` — CRUD, CSV import, line-item matching
 - `tools/bot_service.py` — mock WhatsApp order flow
-- `tools/mock_payment_provider.py` / `tools/doku_provider.py` — payment adapters
+- `tools/mock_payment_provider.py` / `tools/doku_sandbox_provider.py` — payment adapters
+- `tools/doku_payment_sync.py` — poll DOKU Check Status → mark bot order PAID
+- `tools/payment_links.py` / `tools/public_url.py` — mock_pay & doku_pay deep links
 - `tools/parsers.py` — `strip_internal_meta()`, order parsing
