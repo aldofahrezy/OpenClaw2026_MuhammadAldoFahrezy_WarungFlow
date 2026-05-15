@@ -123,7 +123,14 @@ color:#006b47;font-size:0.75rem;font-weight:600;">Help Center</a>
 
     with st.expander("Merchant Profile", expanded=False):
         if state and state.merchant_profile:
-            st.json(state.merchant_profile)
+            p = state.merchant_profile
+            st.markdown(f"**Store:** {p.get('merchant_name', 'N/A')}")
+            st.markdown(f"**Owner:** {p.get('owner_name', 'N/A')}")
+            st.markdown(f"**Location:** {p.get('city', 'N/A')}")
+            st.markdown(f"**Category:** {p.get('business_type', 'N/A')}")
+            methods = ', '.join(p.get('payment_methods', []))
+            st.markdown(f"**Payments:** {methods}")
+            st.markdown(f"**Goal:** {p.get('financing_goal', 'N/A')}")
         else:
             st.caption("Run the agent to load `data/merchant_profile.json`.")
 
@@ -324,7 +331,17 @@ elif nav == "reports":
     st.markdown("### Daily report")
     st.markdown(state.daily_report or "_—_")
     st.markdown("### Validation")
-    st.json(state.validation_report or {})
+    val = state.validation_report or {}
+    if val:
+        ok = val.get("ok", False)
+        status = "✅ Passed" if ok else "❌ Failed"
+        st.markdown(f"**Overall Status:** {status}")
+        for check in val.get("checks", []):
+            icon = "✅" if check.get("passed") else "❌"
+            name = str(check.get('check', '')).replace('_', ' ').title()
+            st.markdown(f"- {icon} {name}")
+    else:
+        st.caption("No validation data available.")
     st.markdown("### Downloads")
     paths = state.exported_files or {}
     if not paths:
