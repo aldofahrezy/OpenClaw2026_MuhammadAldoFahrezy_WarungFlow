@@ -13,4 +13,4 @@ The loop sequence follows:
 6. Validate progress.
 7. Continue until task is complete.
 
-We enforce a `max_steps = 20` threshold to prevent infinite loops. The heartbeat stops when all reports are exported or critical data is missing.
+We enforce a `max_steps = 24` threshold to prevent infinite loops. `CHECK_PAYMENT_STATUS` is limited to one poll per run via `payment_status_poll_done`. The heartbeat stops when all reports are exported or critical data is missing.

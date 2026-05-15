@@ -16,8 +16,8 @@
 
 - **WarungFlow** — autonomous finance operations agent for Indonesian UMKM.
 - Tagline: *From messy notes to bankable reports, autonomously.*
-- Parses WhatsApp orders, reconciles QRIS-style payments, flags issues, scores cashflow, generates reminders and financing-readiness summaries.
-- **Not a chatbot:** one button runs a full autonomous tool loop.
+- Parses WhatsApp orders, reconciles QRIS-style payments, flags issues with **Sisa Rp …** / **Lebih Rp …**, scores cashflow, generates reminders and financing-readiness summaries.
+- **Not a chatbot:** auto-runs a full tool loop on open; **Langkah yang disarankan** guides next actions.
 
 ---
 
@@ -25,19 +25,20 @@
 
 ```mermaid
 flowchart TD
-    A[Messy WhatsApp Orders] --> B[Data Cleaner Agent]
-    C[QRIS/DOKU Payments] --> D[Payment Reconciliation Agent]
+    A[Messy WhatsApp Orders] --> B[Parse + Catalogue]
+    C[QRIS / Mock Payments] --> D[Reconciliation Agent]
     B --> D
-    D --> E[Cashflow Analyst Agent]
+  W[WhatsApp Bot Events] --> B
+    D --> E[Cashflow Analyst]
     E --> F[Advisor Agent]
     F --> G[Validator Agent]
-    G --> H[Exported Reports]
+    G --> H[Exported Reports + Streamlit UI]
 ```
 
-- **Orchestrator:** state-driven `decide_next_action()` loop (max 20 steps).
-- **Memory:** `AgentState` + `execution_trace`.
-- **Tools:** 18+ real Python tools (load, parse, reconcile, cashflow, validate, export).
-- **DOKU Sandbox (optional):** payment requests with mock fallback.
+- **Orchestrator:** state-driven `decide_next_action()` loop (max **24** steps).
+- **Memory:** `AgentState` + `execution_trace` with `run_id`.
+- **Tools:** 20 registered handlers (load, catalogue, bot sync, reconcile, cashflow, validate, export).
+- **Payment:** Mock provider by default; optional DOKU Sandbox adapter.
 
 ---
 
@@ -45,13 +46,17 @@ flowchart TD
 
 | Feature | Benefit |
 |---------|---------|
-| QRIS-style reconciliation | Fuzzy names + order-ID priority in bank notes |
-| Payment issues | UNPAID, PARTIAL, OVERPAID detection |
+| QRIS-style reconciliation | Fuzzy names + order-ID priority |
+| Payment issues | UNPAID, PARTIAL, OVERPAID + sisa/lebih bayar |
+| Recommendations | Langkah yang disarankan on key pages |
+| Product catalogue | CRUD + CSV + pricing for orders |
+| WhatsApp bot | Mock order intake for demo |
 | Health score | 0–100 cashflow signal |
-| Bahasa reminders | Actionable WhatsApp follow-ups |
 | Mock mode | Runs without API keys |
 
-**Stack:** Python 3.11+, Streamlit, pandas, rapidfuzz, python-dotenv, DOKU adapter.
+**Stack:** Python 3.11+, Streamlit, pandas, rapidfuzz, Altair, FastAPI (bot), python-dotenv.
+
+**Live:** http://43.157.208.68:8501
 
 ---
 

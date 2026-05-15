@@ -13,24 +13,28 @@ from state import AgentState
 
 logger = logging.getLogger(__name__)
 
-MAX_STEPS = 20
+MAX_STEPS = 24
 
 
 def decide_next_action(state: AgentState) -> str | None:
     """State-driven planner: next action depends on gaps and validation needs."""
     if state.merchant_profile is None:
         return "LOAD_MERCHANT_PROFILE"
-    if state.raw_orders is None:
+    if state.product_catalogue is None:
+        return "LOAD_PRODUCT_CATALOGUE"
+    if state.bot_runtime_snapshot is None:
+        return "SYNC_BOT_EVENTS"
+    if not state.raw_orders:
         return "LOAD_ORDERS"
     if state.parsed_orders is None:
         return "PARSE_ORDERS"
     if _parsed_has_unknown_amounts(state) and not state.amount_pass_done:
         return "ESTIMATE_OR_FLAG_UNKNOWN_AMOUNTS"
-    if state.payment_transactions is None:
+    if not state.payment_transactions:
         return "LOAD_PAYMENTS"
-    if state.expenses is None:
+    if not state.expenses:
         return "LOAD_EXPENSES"
-    if state.customers is None:
+    if not state.customers:
         return "LOAD_CUSTOMERS"
     if state.reconciliation_results is None:
         return "RECONCILE_PAYMENTS"
@@ -64,13 +68,28 @@ def _parsed_has_unknown_amounts(state: AgentState) -> bool:
     return False
 
 
+_PAYMENT_POLL_TERMINAL = {
+    "COMPLETED",
+    "PAID",
+    "SUCCESS",
+    "SETTLED",
+    "FAILED",
+    "EXPIRED",
+    "CANCELLED",
+    "AWAITING_PAYMENT",
+    "AWAITING_CUSTOMER",
+}
+
+
 def _payment_requests_need_status_poll(state: AgentState) -> bool:
+    if state.payment_status_poll_done:
+        return False
     reqs = state.payment_requests or []
     if not reqs:
         return False
     for pr in reqs:
         st = str(pr.get("status", "")).upper()
-        if st in {"PENDING", "UNKNOWN", ""}:
+        if st not in _PAYMENT_POLL_TERMINAL:
             return True
     return False
 

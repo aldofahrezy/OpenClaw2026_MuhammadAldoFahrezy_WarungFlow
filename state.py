@@ -45,16 +45,25 @@ class AgentState:
     payment_mode: Literal["mock", "doku_sandbox"] = "mock"
     llm_mode: Literal["mock", "live"] = "mock"
     amount_pass_done: bool = False
+    payment_status_poll_done: bool = False
     current_run_id: int = 0
     trigger_reason: str = ""
     latest_run_at: str = ""
     payment_requests_by_order: dict[str, dict[str, Any]] = field(default_factory=dict)
+    product_catalogue: list[dict[str, Any]] | None = None
+    catalogue_warnings: list[str] = field(default_factory=list)
+    catalogue_version: str = ""
+    unknown_products: list[str] = field(default_factory=list)
+    bot_orders: list[dict[str, Any]] | None = None
+    bot_payments: list[dict[str, Any]] | None = None
+    bot_runtime_snapshot: dict[str, Any] | None = None
 
     def reset_pipeline_outputs(self) -> None:
         """Clear derived artifacts before a new autonomous run; keep session inputs."""
         self.parsed_orders = None
         self.reconciliation_results = None
         self.payment_issues = None
+        self.payment_requests = None
         self.cashflow_summary = None
         self.health_score = None
         self.reminders = None
@@ -63,8 +72,11 @@ class AgentState:
         self.validation_report = None
         self.exported_files = None
         self.amount_pass_done = False
+        self.payment_status_poll_done = False
         self.final_status = None
         self.errors = []
+        self.unknown_products = []
+        self.bot_runtime_snapshot = None
 
     def begin_run(self, run_id: int, trigger_reason: str) -> None:
         self.current_run_id = run_id

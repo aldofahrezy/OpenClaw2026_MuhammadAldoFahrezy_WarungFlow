@@ -11,6 +11,15 @@ import streamlit as st
 
 from session_runtime import mark_data_changed
 
+EXPENSE_CATEGORIES = (
+    "bahan_baku",
+    "gas",
+    "listrik",
+    "packaging",
+    "transport",
+    "other",
+)
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -98,6 +107,15 @@ def append_expense(category: str, description: str, amount: int, date: str) -> b
 def add_unpaid_order_demo() -> None:
     append_whatsapp_order(
         "Mbak, nasi goreng 2 total 44000, bayar nanti malam - Kevin"
+    )
+
+
+def add_expense_shock_demo() -> bool:
+    return append_expense(
+        category="bahan_baku",
+        description="Kenaikan harga bahan baku",
+        amount=125_000,
+        date=datetime.now(timezone.utc).date().isoformat(),
     )
 
 

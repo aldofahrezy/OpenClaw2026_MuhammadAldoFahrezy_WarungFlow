@@ -18,6 +18,12 @@ from state import AgentState
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 
+SANDBOX_FINGERPRINT_KEYS = (
+    "_order_fingerprints",
+    "_payment_fingerprints",
+    "_expense_fingerprints",
+)
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -29,13 +35,17 @@ def stable_hash(data: Any) -> str:
 
 
 def hash_payload_from_session() -> dict[str, Any]:
+    from tools import event_store
+
     return {
         "merchant_profile": st.session_state.get("merchant_profile"),
         "raw_orders": st.session_state.get("raw_orders"),
         "payment_transactions": st.session_state.get("payment_transactions"),
         "expenses": st.session_state.get("expenses"),
         "customers": st.session_state.get("customers"),
+        "product_catalogue": st.session_state.get("product_catalogue"),
         "payment_mode": st.session_state.get("payment_mode_choice", "mock"),
+        "bot_runtime": event_store.runtime_snapshot_for_hash(),
     }
 
 
@@ -55,6 +65,8 @@ def init_session_defaults() -> None:
         "expenses": None,
         "customers": None,
         "merchant_profile": None,
+        "product_catalogue": None,
+        "catalogue_version": "",
         "payment_mode_choice": "mock",
         "last_input_hash": None,
         "auto_refresh_enabled": True,
@@ -96,8 +108,25 @@ def load_sample_data_into_session(*, force: bool = False) -> None:
     with open(DATA_DIR / "sample_customers.csv", encoding="utf-8") as f:
         st.session_state.customers = [dict(r) for r in csv.DictReader(f)]
 
+    from tools.catalogue_tools import load_product_catalogue_from_csv, catalogue_version
+
+    st.session_state.product_catalogue = load_product_catalogue_from_csv()
+    st.session_state.catalogue_version = catalogue_version(st.session_state.product_catalogue)
+
     st.session_state.loaded_sample_data = True
     st.session_state.payment_requests_by_order = {}
+    st.session_state.webhook_events_seen = set()
+
+
+def clear_sandbox_duplicate_state(target: dict[str, Any] | None = None) -> None:
+    """Clear Live Data Sandbox idempotency sets (plain dict for tests, else Streamlit)."""
+    if target is not None:
+        for key in SANDBOX_FINGERPRINT_KEYS:
+            target[key] = set()
+        target["webhook_events_seen"] = set()
+        return
+    for key in SANDBOX_FINGERPRINT_KEYS:
+        st.session_state[key] = set()
     st.session_state.webhook_events_seen = set()
 
 
@@ -112,11 +141,12 @@ def reset_demo_session() -> None:
     st.session_state.last_export_paths = None
     st.session_state.payment_requests_by_order = {}
     st.session_state.webhook_events_seen = set()
-    load_sample_data_into_session(force=True)
+    clear_sandbox_duplicate_state()
     st.session_state._pending_agent_run = True
     st.session_state._pending_trigger = "reset_demo"
     st.session_state.ui_status = "Auto-refreshing"
     st.session_state.ui_status_detail = "Reset demo data"
+    load_sample_data_into_session(force=True)
 
 
 def build_seed_agent_state(cfg: RuntimeConfig) -> AgentState:
@@ -132,14 +162,25 @@ def build_seed_agent_state(cfg: RuntimeConfig) -> AgentState:
         expenses=[dict(r) for r in (st.session_state.expenses or [])],
         customers=[dict(r) for r in (st.session_state.customers or [])],
     )
+    agent.payment_requests_by_order = dict(
+        st.session_state.get("payment_requests_by_order") or {}
+    )
+    agent.product_catalogue = copy.deepcopy(st.session_state.get("product_catalogue") or [])
+    agent.catalogue_version = str(st.session_state.get("catalogue_version") or "")
     return agent
 
 
 def sync_session_from_agent(agent: AgentState) -> None:
     st.session_state.agent_state = agent
     st.session_state.state = agent
+    st.session_state.payment_requests_by_order = dict(
+        getattr(agent, "payment_requests_by_order", {}) or {}
+    )
     if agent.exported_files:
         st.session_state.last_export_paths = dict(agent.exported_files)
+    if getattr(agent, "product_catalogue", None):
+        st.session_state.product_catalogue = copy.deepcopy(agent.product_catalogue)
+        st.session_state.catalogue_version = agent.catalogue_version
 
 
 def get_agent_state() -> AgentState | None:
@@ -183,11 +224,11 @@ def run_agent_once(
     if st.session_state.get("agent_state"):
         prior = st.session_state.agent_state
         seed.execution_trace = list(prior.execution_trace)
-        seed.payment_requests = list(prior.payment_requests or [])
-        if hasattr(prior, "payment_requests_by_order"):
-            seed.payment_requests_by_order = dict(
-                getattr(prior, "payment_requests_by_order", {}) or {}
-            )
+        seed.payment_requests_by_order = dict(
+            getattr(prior, "payment_requests_by_order", {})
+            or st.session_state.get("payment_requests_by_order")
+            or {}
+        )
 
     final: AgentState | None = None
     for snapshot in run_agent_stream(
@@ -204,10 +245,10 @@ def run_agent_once(
     st.session_state.data_stale = False
     st.session_state.run_token = int(st.session_state.get("run_token", 0)) + 1
 
-    if final.final_status == "NEEDS_REVIEW":
-        st.session_state.ui_status = "Last run needs review"
-    elif final.errors:
+    if final.final_status == "ERROR":
         st.session_state.ui_status = "Error"
+    elif final.final_status == "NEEDS_REVIEW":
+        st.session_state.ui_status = "Last run needs review"
     else:
         st.session_state.ui_status = "Last run completed"
     st.session_state.ui_status_detail = (

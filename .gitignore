@@ -6,6 +6,7 @@ __pycache__/
 .DS_Store
 .pytest_cache/
 .ruff_cache/
+runtime/
 outputs/*.md
 outputs/*.csv
 !outputs/.gitkeep

@@ -1,0 +1,11 @@
+sku,product_name,aliases,category,unit_price,unit,is_active,stock_optional,notes
+SKU-001,Nasi Uduk,nasi uduk|uduk,makanan,10000,porsi,true,,Best seller
+SKU-002,Teh Manis,teh manis|esteh manis|teh,minuman,5000,gelas,true,,
+SKU-003,Ayam Geprek,ayam geprek|geprek,makanan,18000,porsi,true,,
+SKU-004,Kopi,kopi|kopi hitam,minuman,10000,gelas,true,,
+SKU-005,Nasi Goreng,nasi goreng|nasgor,makanan,17000,porsi,true,,
+SKU-006,Es Teh,es teh|esteh,minuman,5000,gelas,true,,
+SKU-007,Mie Ayam,mie ayam|mi ayam,makanan,15000,porsi,true,,
+SKU-008,Es Kopi Susu,es kopi susu|kopi susu,minuman,12000,gelas,true,,
+SKU-009,Catering Box,catering box|nasi box|box,catering,15000,box,true,,
+SKU-0515-010,Pisang Goreng,pisang goreng|pisgor,makanan,8000,pcs,true,,

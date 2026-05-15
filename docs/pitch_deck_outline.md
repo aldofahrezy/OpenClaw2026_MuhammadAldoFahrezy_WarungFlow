@@ -15,11 +15,11 @@ Source: `docs/OpenClaw2026_MuhammadAldoFahrezy_WarungFlow.md`
 
 ## Slide 3: AI Agent Workflow / Architecture
 
-- Orchestrator + state-driven loop + 18 tools + optional DOKU + Validator.
+- Orchestrator + state-driven loop + 20 tools + catalogue + mock WhatsApp bot + optional DOKU + Validator.
 
 ## Slide 4: Key Features & Tech Stack
 
-- QRIS reconciliation, payment issues, health score, Bahasa reminders, Streamlit, rapidfuzz.
+- QRIS reconciliation, sisa/lebih bayar, recommendations, catalogue CRUD, mock bot, health score, Streamlit, Altair, rapidfuzz. Live: http://43.157.208.68:8501
 
 ## Slide 5: Future Development / Impact
 

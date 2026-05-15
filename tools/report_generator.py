@@ -5,6 +5,16 @@ from typing import Any
 from tools.llm_client import refine_financing_narrative, refine_payment_reminder
 
 
+def merchant_display_name(merchant: dict[str, Any]) -> str:
+    return str(
+        merchant.get("merchant_name") or merchant.get("name") or "Warung"
+    ).strip()
+
+
+def merchant_owner_name(merchant: dict[str, Any]) -> str:
+    return str(merchant.get("owner_name") or merchant.get("owner") or "").strip()
+
+
 def generate_daily_report(
     merchant: dict[str, Any],
     summary: dict[str, Any],
@@ -12,7 +22,7 @@ def generate_daily_report(
     reconciliation: list[dict[str, Any]],
 ) -> str:
     lines = [
-        f"# Daily Report — {merchant.get('name', 'Warung')}",
+        f"# Daily Report — {merchant_display_name(merchant)}",
         "",
         "## Cashflow",
         f"- Expected: Rp {summary.get('expected_revenue', 0):,}",

@@ -16,6 +16,14 @@ from tools.report_generator import (
     generate_reminders,
     validate_outputs,
 )
+from tools.bot_service import merge_bot_into_agent_inputs
+from tools.catalogue_tools import (
+    catalogue_version,
+    load_product_catalogue_from_csv,
+    load_product_catalogue_tool,
+    validate_catalogue_tool,
+)
+from tools import event_store
 from tools.parsers import parse_orders_batch
 from tools.mock_payment_provider import MockPaymentProvider
 from tools.reconciliation_tools import detect_payment_issues, reconcile_orders
@@ -36,17 +44,33 @@ def _has_unpaid(state: AgentState) -> bool:
     return False
 
 
+def _payment_request_id(pr: dict[str, Any]) -> str:
+    return str(pr.get("id") or pr.get("payment_request_id") or "")
+
+
+def _seed_provider_from_state(state: AgentState, prov: Any) -> None:
+    if not hasattr(prov, "restore_request"):
+        return
+    for pr in (state.payment_requests_by_order or {}).values():
+        if isinstance(pr, dict):
+            prov.restore_request(pr)
+
+
 def _append_unpaid_payment_requests(
     state: AgentState, prov: Any, provider_box: list[Any]
-) -> None:
+) -> tuple[int, int]:
+    """Create or reuse payment requests for unpaid/partial orders. Returns (created, reused)."""
     if state.payment_requests is None:
         state.payment_requests = []
+    created = 0
+    reused = 0
     for r in state.reconciliation_results or []:
         if r.get("status") not in {"UNPAID", "PARTIALLY_PAID"}:
             continue
         oid = str(r.get("order_id"))
         if oid in state.payment_requests_by_order:
             state.payment_requests.append(state.payment_requests_by_order[oid])
+            reused += 1
             continue
         order = next(
             (o for o in (state.parsed_orders or []) if str(o.get("order_id")) == oid),
@@ -61,6 +85,8 @@ def _append_unpaid_payment_requests(
         pr = prov.create_payment_request(oid, remaining, f"Bill {oid}")
         state.payment_requests_by_order[oid] = pr
         state.payment_requests.append(pr)
+        created += 1
+    return created, reused
 
 
 def tool_load_merchant_profile(state: AgentState, provider_box: list[Any]) -> None:
@@ -83,33 +109,71 @@ def tool_load_merchant_profile(state: AgentState, provider_box: list[Any]) -> No
     )
 
 
-def tool_load_orders(state: AgentState, provider_box: list[Any]) -> None:
-    if state.raw_orders is not None:
-        state.trace(
-            decision="Raw orders present; use session WhatsApp lines.",
-            tool="LOAD_ORDERS",
-            input_summary="session",
-            output_summary=f"lines={len(state.raw_orders)}",
-        )
-        return
-    path = DATA_DIR / "sample_orders_whatsapp.txt"
-    raw = path.read_text(encoding="utf-8").splitlines()
-    state.raw_orders = [ln for ln in raw if ln.strip()]
+def tool_load_product_catalogue(state: AgentState, provider_box: list[Any]) -> None:
+    cat = load_product_catalogue_tool(state)
+    val = validate_catalogue_tool(cat)
+    state.catalogue_warnings = list(val.get("warnings") or [])
+    state.catalogue_version = catalogue_version(cat)
     state.trace(
-        decision="No raw orders in state; ingest sample WhatsApp lines.",
+        decision="Load merchant product catalogue for pricing.",
+        tool="LOAD_PRODUCT_CATALOGUE",
+        input_summary="product_catalogue.csv",
+        output_summary=f"products={len(cat)} warnings={len(state.catalogue_warnings)}",
+        status="warn" if state.catalogue_warnings else "ok",
+    )
+
+
+def tool_sync_bot_events(state: AgentState, provider_box: list[Any]) -> None:
+    state.bot_orders = event_store.get_recent_bot_orders(200)
+    state.bot_payments = event_store.get_recent_payments(200)
+    state.bot_runtime_snapshot = event_store.runtime_snapshot_for_hash()
+    raw, txns = merge_bot_into_agent_inputs(
+        state.raw_orders,
+        state.payment_transactions,
+    )
+    if raw:
+        state.raw_orders = raw
+    if txns:
+        state.payment_transactions = txns
+    state.trace(
+        decision="Merge WhatsApp bot orders and mock payments from event store.",
+        tool="SYNC_BOT_EVENTS",
+        input_summary="runtime/",
+        output_summary=f"bot_orders={len(state.bot_orders)} lines={len(raw)} txns={len(txns)}",
+    )
+
+
+def tool_load_orders(state: AgentState, provider_box: list[Any]) -> None:
+    if state.raw_orders is None:
+        path = DATA_DIR / "sample_orders_whatsapp.txt"
+        raw = path.read_text(encoding="utf-8").splitlines()
+        state.raw_orders = [ln for ln in raw if ln.strip()]
+        source = str(path.name)
+    else:
+        source = "session"
+    raw, _ = merge_bot_into_agent_inputs(state.raw_orders, state.payment_transactions)
+    state.raw_orders = raw
+    state.trace(
+        decision="Load WhatsApp order lines (sample + bot).",
         tool="LOAD_ORDERS",
-        input_summary=str(path.name),
+        input_summary=source,
         output_summary=f"lines={len(state.raw_orders)}",
     )
 
 
 def tool_parse_orders(state: AgentState, provider_box: list[Any]) -> None:
-    state.parsed_orders = parse_orders_batch(state.raw_orders or [])
+    cat = state.product_catalogue or load_product_catalogue_from_csv()
+    state.parsed_orders = parse_orders_batch(state.raw_orders or [], catalogue=cat)
+    unknown: list[str] = []
+    for row in state.parsed_orders or []:
+        unknown.extend(row.get("unknown_products") or [])
+    state.unknown_products = list(dict.fromkeys(unknown))
     state.trace(
-        decision="Parsed orders empty or stale; run deterministic parser.",
+        decision="Parse orders using product catalogue pricing.",
         tool="PARSE_ORDERS",
-        input_summary=f"{len(state.raw_orders or [])} lines",
-        output_summary=f"parsed={len(state.parsed_orders)}",
+        input_summary=f"{len(state.raw_orders or [])} lines catalogue={len(cat)}",
+        output_summary=f"parsed={len(state.parsed_orders)} unknown={len(state.unknown_products)}",
+        status="warn" if state.unknown_products else "ok",
     )
 
 
@@ -238,50 +302,96 @@ def tool_simulate_doku_webhook(state: AgentState, provider_box: list[Any]) -> No
 
 def tool_resolve_payment_requests(state: AgentState, provider_box: list[Any]) -> None:
     prov = provider_box[0]
+    _seed_provider_from_state(state, prov)
     if state.payment_requests is None:
         state.payment_requests = []
+    created, reused = 0, 0
     if state.payment_mode == "doku_sandbox" and _has_unpaid(state):
         try:
-            _append_unpaid_payment_requests(state, prov, provider_box)
+            created, reused = _append_unpaid_payment_requests(state, prov, provider_box)
         except Exception as e:  # noqa: BLE001
             logger.warning("Payment provider failed; falling back to mock: %s", e)
             state.errors.append(str(e))
             state.payment_mode = "mock"
             provider_box[0] = MockPaymentProvider()
             prov = provider_box[0]
-            state.payment_requests = list(state.payment_requests_by_order.values())
-            _append_unpaid_payment_requests(state, prov, provider_box)
+            state.payment_requests = []
+            created, reused = _append_unpaid_payment_requests(state, prov, provider_box)
             state.trace(
                 decision="DOKU path failed; mock payment requests created.",
                 tool="RESOLVE_PAYMENT_REQUESTS",
                 input_summary="unpaid/partial",
-                output_summary=f"requests={len(state.payment_requests)}",
+                output_summary=(
+                    f"requests={len(state.payment_requests)} "
+                    f"created={created} reused={reused}"
+                ),
                 status="warn",
             )
             return
     elif state.payment_mode == "mock" and _has_unpaid(state):
-        _append_unpaid_payment_requests(state, prov, provider_box)
+        created, reused = _append_unpaid_payment_requests(state, prov, provider_box)
+    summary = f"requests={len(state.payment_requests or [])} created={created} reused={reused}"
+    if reused and not created:
+        decision = "Reused existing payment requests for unpaid orders."
+    elif created and reused:
+        decision = "Created and reused payment requests for unpaid orders."
+    elif created:
+        decision = "Created new payment requests for unpaid orders."
+    else:
+        decision = "Payment request phase; no unpaid orders needing requests."
     state.trace(
-        decision="Payment request phase; create or skip based on mode and unpaid balance.",
+        decision=decision,
         tool="RESOLVE_PAYMENT_REQUESTS",
         input_summary=f"mode={state.payment_mode}",
-        output_summary=f"requests={len(state.payment_requests)}",
+        output_summary=summary,
     )
 
 
 def tool_check_payment_status(state: AgentState, provider_box: list[Any]) -> None:
     prov = provider_box[0]
+    _seed_provider_from_state(state, prov)
     updated = 0
+    still_open = 0
     for pr in state.payment_requests or []:
-        rid = str(pr.get("id") or "")
+        rid = _payment_request_id(pr)
+        if not rid:
+            pr["status"] = "AWAITING_PAYMENT"
+            still_open += 1
+            continue
         result = prov.check_payment_status(rid)
-        pr["status"] = result.get("status", pr.get("status"))
+        new_status = str(result.get("status") or pr.get("status") or "UNKNOWN").upper()
+        if new_status in {"", "UNKNOWN"}:
+            oid = str(pr.get("order_id") or "")
+            reco = next(
+                (
+                    r
+                    for r in (state.reconciliation_results or [])
+                    if str(r.get("order_id")) == oid
+                ),
+                None,
+            )
+            if reco and str(reco.get("status") or "").upper() == "PAID":
+                new_status = "COMPLETED"
+            else:
+                new_status = "AWAITING_PAYMENT"
+        pr["status"] = new_status
         updated += 1
+        if new_status not in {
+            "COMPLETED",
+            "PAID",
+            "SUCCESS",
+            "SETTLED",
+            "FAILED",
+            "EXPIRED",
+            "CANCELLED",
+        }:
+            still_open += 1
+    state.payment_status_poll_done = True
     state.trace(
-        decision="Outstanding payment requests need status refresh.",
+        decision="One-time payment link status refresh (unpaid links stay open).",
         tool="CHECK_PAYMENT_STATUS",
         input_summary=f"count={len(state.payment_requests or [])}",
-        output_summary=f"polled={updated}",
+        output_summary=f"polled={updated} still_open={still_open}",
     )
 
 
@@ -382,6 +492,8 @@ def tool_export_reports(state: AgentState, provider_box: list[Any]) -> None:
 
 TOOL_REGISTRY: dict[str, ToolHandler] = {
     "LOAD_MERCHANT_PROFILE": tool_load_merchant_profile,
+    "LOAD_PRODUCT_CATALOGUE": tool_load_product_catalogue,
+    "SYNC_BOT_EVENTS": tool_sync_bot_events,
     "LOAD_ORDERS": tool_load_orders,
     "PARSE_ORDERS": tool_parse_orders,
     "ESTIMATE_OR_FLAG_UNKNOWN_AMOUNTS": tool_estimate_or_flag_unknown_amounts,

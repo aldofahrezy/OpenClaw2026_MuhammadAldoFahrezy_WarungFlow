@@ -20,8 +20,14 @@ read_when:
 
 ## Agent identity
 
-WarungFlow is a **deterministic-first autonomous finance operations agent** — not a chatbot. One user action (`Run WarungFlow Agent`) triggers a state-driven loop that loads data, parses orders, reconciles payments, scores cashflow, generates Bahasa Indonesia reminders, validates outputs, and exports reports.
+WarungFlow is a **deterministic-first autonomous finance operations agent** — not a chatbot. On open, it loads sample data and auto-runs a state-driven loop (up to 24 tool steps) that parses orders, reconciles QRIS-style payments, scores cashflow, generates Bahasa Indonesia reminders, validates outputs, and exports reports.
+
+**Dashboard:** six pages (Beranda, Katalog, WhatsApp Bot, Jejak agen, Rekonsiliasi, Laporan) with merchant-friendly tables, **Langkah yang disarankan** recommendations, and technical details tucked in expanders.
+
+**Live Data Sandbox:** add orders, payments, expenses; auto-refresh reruns when inputs change.
+
+**Catalogue & bot:** product CRUD + CSV on **Katalog**; mock WhatsApp customer orders via `bot_server.py` and **WhatsApp Bot** page.
 
 ## User context
 
-Primary users are Indonesian UMKM and warung owners who need daily clarity on who has paid, who owes money, and whether they are ready for simple financing conversations.
+Primary users are Indonesian UMKM and warung owners who need daily clarity on who has paid, who owes money (with **Sisa Rp …** / **Lebih Rp …**), and whether they are ready for simple financing conversations.

@@ -1,173 +1,192 @@
 # WarungFlow
 
-**Autonomous finance operations agent for Indonesian UMKM.**
+**OpenClaw2026_MuhammadAldoFahrezy_WarungFlow** — autonomous finance operations agent for Indonesian UMKM (OpenClaw Agenthon Indonesia 2026, **Best Payment Use Case**).
 
-**Team:** OpenClaw2026_MuhammadAldoFahrezy · **Repository:** OpenClaw2026_MuhammadAldoFahrezy_WarungFlow
+**Tagline:** From messy notes to bankable reports, autonomously.
 
-WarungFlow is **deterministic-first**: even without an LLM key or DOKU credentials, the autonomous loop still calls tools, reconciles payments, calculates cashflow, validates outputs, and exports reports using local sample data.
+| | |
+|---|---|
+| **Team** | OpenClaw2026_MuhammadAldoFahrezy |
+| **Devpost** | https://openclawagenthon.devpost.com/ |
+| **Live demo (VPS)** | http://43.157.208.68:8501 |
+| **GitHub** | https://github.com/aldofahrezy/Warung-Flow |
 
-## Problem Statement
+---
 
-Many Indonesian UMKM and warung owners receive orders through WhatsApp, accept payments through QRIS/bank transfer/cash, and track expenses manually. At the end of the day, they often do not know which customers have paid, which payments are partial, how much revenue came in, or what action they should take next. The manual process of matching WhatsApp chats to bank mutations is slow and error-prone.
+## What it does
 
-## Solution Overview
+WarungFlow is **not a chatbot**. It is a state-driven autonomous agent that:
 
-WarungFlow solves this by acting as an autonomous finance operations agent. It parses messy order messages, reconciles payments deterministically, detects unpaid/partial payments, calculates daily cashflow, scores the business health, and optionally generates DOKU Sandbox payment links for unpaid orders.
+1. Loads messy WhatsApp-style orders, QRIS/bank payments, expenses, and a product catalogue.
+2. Parses orders (deterministic + catalogue pricing) and reconciles payments with fuzzy Indonesian name matching and **order-ID priority** in bank notes.
+3. Flags **PAID**, **UNPAID**, **PARTIALLY_PAID**, **OVERPAID**, and **NEEDS_REVIEW** — with **Sisa Rp …** / **Lebih Rp …** in the UI.
+4. Optionally creates mock or DOKU Sandbox payment requests (mock mode works without API keys).
+5. Calculates cashflow, net profit, and a 0–100 health score.
+6. Generates Bahasa Indonesia payment reminders and financing-readiness text.
+7. Validates and exports markdown/CSV reports.
 
-## Why this is not a chatbot
+**Reactive demo:** the Live Data Sandbox lets you add orders, payments, and expenses; with auto-refresh on, the agent reruns when input data changes (e.g. Kevin UNPAID → PAID).
 
-WarungFlow is NOT a chatbot. It does not wait for a user's prompt. When triggered, it enters an autonomous loop, deciding which tool to call based on `AgentState`. It has tool-calling capabilities ("tangan"), memory, and a visible execution trace.
+---
 
-## OpenClaw workspace (agent brain)
+## Streamlit dashboard (merchant-friendly UI)
 
-Per competition mentor guidelines, the `workspace/` folder defines the agent for OpenClaw / QwenPaw:
+Navigation (`app.py`):
 
-| File | Purpose |
+| Page | Purpose |
 |------|---------|
-| `AGENTS.md` | Multi-agent roles |
-| `SOUL.md` | Product philosophy |
-| `TOOLS.md` | Callable tools catalog |
-| `HEARTBEAT.md` | Autonomous loop policy |
-| `MEMORY.md` | State / memory model |
-| `PROFILE.md` | Demo merchant + identity (QwenPaw) |
-| `IDENTITY.md` / `USER.md` | Competition context |
+| **Beranda** | KPIs, reconciliation summary, **Langkah yang disarankan**, export downloads, agent trace at bottom |
+| **Katalog** | Product CRUD (add/edit/delete), CSV import/export, stock warnings |
+| **WhatsApp Bot** | Mock customer chat, order table, payment simulation (no raw URLs/tokens on main view) |
+| **Jejak agen** | Human-readable execution trace grouped by `run_id` |
+| **Rekonsiliasi** | Tagihan / Terbayar / Status / Sisa-kelebihan tables (technical columns in expander) |
+| **Laporan** | Altair charts, KPIs, recommendations, report downloads |
 
-Runtime code lives in `agents/` and `tools/`; `openclaw.json` links the workspace to the app.
+**Sidebar:** Live Data Sandbox (orders, payments, expenses), auto-refresh toggle, **Force Refresh Analysis**, **Reset Demo**, mock-mode banner.
 
-## Agent workflow
+Shared UI helpers live in `dashboard.py` (`section_header_html`, `build_action_recommendations`, `reconciliation_table_html`, etc.).
 
-```mermaid
-flowchart TD
-    A[Messy WhatsApp Orders] --> B[Data Cleaner Agent]
-    C[QRIS/DOKU Payments] --> D[Payment Reconciliation Agent]
-    B --> D
-    D --> E[Cashflow Analyst Agent]
-    E --> F[Advisor Agent]
-    F --> G[Validator Agent]
-    G --> H[Exported Reports]
-```
+---
 
-## Installation
+## WhatsApp bot (optional)
 
-1. Create and activate a virtual environment:
+- **`bot_server.py`** — FastAPI webhook + mock chat API (`WHATSAPP_MODE=mock` by default).
+- **`tools/bot_service.py`**, **`tools/event_store.py`**, **`tools/whatsapp_provider.py`** — order intake, catalogue matching, mock payment links.
+- Dashboard **WhatsApp Bot** page drives the demo without exposing uvicorn URLs or secrets on the main UI.
+
+Configure via `.env` (see `.env.example`): `WHATSAPP_*`, `BOT_SERVER_URL`, `PUBLIC_BASE_URL`.
+
+---
+
+## Product catalogue
+
+- Data: `data/product_catalogue.csv`
+- Tools: `tools/catalogue_tools.py` (load, match, upsert, delete)
+- Agent tool: `LOAD_PRODUCT_CATALOGUE` (pricing for parsed orders)
+- Dashboard: full CRUD on **Katalog** + CSV import tab
+
+---
+
+## Quick start (judges)
 
 ```bash
+git clone https://github.com/aldofahrezy/Warung-Flow.git
+cd Warung-Flow
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-**Windows (PowerShell or CMD):**
-
-```bat
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-2. Install dependencies:
-
-```bash
 pip install -r requirements.txt
-```
-
-3. Setup environment variables:
-
-```bash
-cp .env.example .env
-```
-
-Leave `LLM_MODE=mock` and `PAYMENT_MODE=mock` for judging without API keys.
-
-## How to run tests
-
-```bash
+cp .env.example .env    # mock modes — no API keys required
 python smoke_test.py -v
-python -m compileall app.py smoke_test.py config.py state.py agents tools dashboard.py
-```
-
-## How to run the app
-
-```bash
 streamlit run app.py
 ```
 
-Click **Run WarungFlow Agent** once. The orchestrator autonomously loads sample data, parses orders, reconciles payments, generates reports, validates, and exports files to `outputs/`.
+Open http://localhost:8501 — sample **Warung Bu Sari** data loads and the first agent run starts automatically.
 
-## Live deployment (Devpost bonus)
+**Optional bot server** (separate terminal):
 
-**VPS (this server):** http://43.157.208.68:8501 — see `deploy/start.sh` and **[DEPLOY.md](DEPLOY.md)**.
-
-**Streamlit Cloud:** step-by-step in **[DEPLOY.md](DEPLOY.md)**.
-
-1. Push `main` to https://github.com/aldofahrezy/Warung-Flow  
-2. https://share.streamlit.io → Create app → `app.py`  
-3. Paste secrets from `.streamlit/secrets.toml.example` (`PAYMENT_MODE=mock`)  
-4. Add the `*.streamlit.app` URL to Devpost **Live Deployment Link**
-
-Suggested app slug: `warungflow-muhammadaldofahrezy`
-
-## Environment variables
-
-See `.env.example`. DOKU keys are optional; missing credentials fall back to mock mode with a non-blocking warning.
-
-```
-DOKU_CLIENT_ID=dk_********1234
-DOKU_SECRET_KEY=SK-********
-DOKU_SANDBOX_BASE_URL=https://api-sandbox.doku.com
+```bash
+uvicorn bot_server:app --host 0.0.0.0 --port 8000
 ```
 
-Never commit `.env`.
+---
 
-## Sample data (Warung Bu Sari)
+## Agent architecture
 
-- `data/sample_orders_whatsapp.txt` (10 orders)
-- `data/sample_qris_transactions.csv`
-- `data/sample_expenses.csv`
-- `data/sample_customers.csv`
-- `data/merchant_profile.json`
-- `data/menu_price_catalog.json`
+```mermaid
+flowchart LR
+  UI[Streamlit UI] --> ORCH[Orchestrator]
+  ORCH -->|decide_next_action| TOOLS[Tool handlers]
+  TOOLS --> STATE[AgentState + trace]
+  STATE --> UI
+```
 
-## Demo scenario
+- **Loop:** `agents/orchestrator.py` — `run_agent_stream()`, max **24** steps per run, `payment_status_poll_done` prevents infinite `CHECK_PAYMENT_STATUS` loops.
+- **State:** `state.py` — `AgentState`, `execution_trace`, payment request maps, sandbox fingerprints.
+- **Tools:** `agents/tool_handlers.py` — `TOOL_REGISTRY` (20 handlers).
+- **Logic:** `tools/` — parsers, reconciliation, cashflow, mock/DOKU payment provider, catalogue, bot.
 
-1. Open the UI (`streamlit run app.py`).
-2. Confirm Mock Mode in the sidebar (or set `PAYMENT_MODE=mock` in `.env`).
-3. Click **Run WarungFlow Agent**.
-4. Review execution trace, reconciliation (PAID / UNPAID / PARTIAL / OVERPAID), reminders, health score, and downloads.
+Workspace docs for OpenClaw/QwenPaw: `workspace/AGENTS.md`, `SOUL.md`, `TOOLS.md`, `HEARTBEAT.md`, `MEMORY.md`, `PROFILE.md`.
 
-## Outputs
+---
 
-After a run, see `outputs/`:
+## Tool registry
 
-- `daily_report.md`
-- `payment_reminders.md`
-- `financing_readiness.md`
-- `validation_report.md`
-- `reconciliation_result.csv`
-- `execution_trace.csv`
+| Tool | Role |
+|------|------|
+| `LOAD_MERCHANT_PROFILE` | Merchant JSON |
+| `LOAD_PRODUCT_CATALOGUE` | Product prices for parsing |
+| `SYNC_BOT_EVENTS` | Merge WhatsApp bot orders into state |
+| `LOAD_ORDERS` / `PARSE_ORDERS` | Raw → structured orders |
+| `ESTIMATE_OR_FLAG_UNKNOWN_AMOUNTS` | Catalogue-based estimates |
+| `LOAD_PAYMENTS` / `LOAD_EXPENSES` / `LOAD_CUSTOMERS` | Inputs |
+| `RECONCILE_PAYMENTS` | Match orders ↔ payments |
+| `DETECT_PAYMENT_ISSUES` | UNPAID / partial / overpaid |
+| `RESOLVE_PAYMENT_REQUESTS` | Create payment links (mock/DOKU) |
+| `CHECK_PAYMENT_STATUS` | Poll provider (once per run) |
+| `SIMULATE_DOKU_WEBHOOK` | Sandbox webhook demo |
+| `CALCULATE_CASHFLOW` / `SCORE_CASHFLOW_HEALTH` | P&L + health score |
+| `GENERATE_REMINDERS` / `GENERATE_FINANCING_READINESS` / `GENERATE_DAILY_REPORT` | Advisor outputs |
+| `VALIDATE_OUTPUTS` / `EXPORT_REPORTS` | QA + files under `outputs/` |
 
-## Submission assets
+---
 
-- Pitch deck source: `docs/OpenClaw2026_MuhammadAldoFahrezy_WarungFlow.md`
-- Devpost copy: `docs/devpost_submission.md`
-- Demo script: `docs/demo_script.md`
-- Checklist: `SUBMISSION.md`
+## Configuration
 
-## Tech stack
+| Variable | Default | Notes |
+|----------|---------|--------|
+| `PAYMENT_MODE` | `mock` | `mock` or `doku` |
+| `LLM_MODE` | `mock` | `mock` or `live` (Groq optional) |
+| `WHATSAPP_MODE` | `mock` | `mock` or `live` (Meta API) |
+| `WARUNGFLOW_ENV` | `local` | `production` on deploy |
 
-- Python 3.11+
-- Streamlit
-- pandas
-- python-dotenv
-- RapidFuzz
+See `.env.example` for DOKU and WhatsApp fields.
 
-## Known limitations
+---
 
-- Local files instead of live WhatsApp webhooks.
-- DOKU Sandbox is optional and not live banking.
+## Sample data
 
-## AI tools/models used
+| File | Content |
+|------|---------|
+| `data/sample_whatsapp_orders.txt` | 10 messy orders (Warung Bu Sari) |
+| `data/sample_qris_transactions.csv` | QRIS-style payments |
+| `data/sample_expenses.csv` | Daily expenses |
+| `data/sample_customers.csv` | CRM names |
+| `data/product_catalogue.csv` | Menu + prices |
+| `data/merchant_profile.json` | Store metadata |
 
-- Cursor / Gemini-assisted development for agent loop structure and sample data.
+---
+
+## Tests & outputs
+
+```bash
+python smoke_test.py -v
+```
+
+Covers reconciliation, payment poll guard, catalogue CRUD, recommendations, and full agent run. Generated artifacts (gitignored except `outputs/example_outputs.md`):
+
+- `daily_report.md`, `payment_reminders.md`, `financing_readiness.md`, `validation_report.md`
+- `reconciliation_result.csv`, `execution_trace.csv`
+
+---
+
+## Deploy
+
+- **VPS (current live):** http://43.157.208.68:8501 — see `DEPLOY.md` and `deploy/warungflow.service`
+- **Streamlit Cloud:** `DEPLOY.md` → `https://warungflow-muhammadaldofahrezy.streamlit.app`
+
+---
+
+## Submission docs
+
+| Doc | Use |
+|-----|-----|
+| `SUBMISSION.md` | Devpost checklist |
+| `docs/devpost_submission.md` | Copy-paste Devpost fields |
+| `docs/demo_script.md` | 2-minute video script |
+| `docs/OpenClaw2026_MuhammadAldoFahrezy_WarungFlow.md` | Pitch deck source |
+
+---
 
 ## License
 
-MIT (hackathon submission).
+MIT — see repository for details.

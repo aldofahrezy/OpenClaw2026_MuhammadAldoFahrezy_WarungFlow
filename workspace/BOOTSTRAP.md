@@ -8,4 +8,5 @@ To initialize the WarungFlow agent environment:
 3. Configure API keys in `.env` (optional). If missing, the agent will gracefully fallback to `mock` modes.
 4. Execute the orchestrator loop by running the Streamlit app:
    `streamlit run app.py`
-5. The agent is initialized when the UI loads, and the autonomous loop triggers when "Run WarungFlow Agent" is clicked.
+5. The agent initializes when the UI loads; sample data loads automatically and the autonomous loop runs on first open (and on input-hash changes when auto-refresh is enabled).
+6. Optional: start the WhatsApp bot API with `uvicorn bot_server:app --port 8000` for the **WhatsApp Bot** dashboard page.
