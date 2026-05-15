@@ -4,11 +4,22 @@
 **Project:** `OpenClaw2026_MuhammadAldoFahrezy_WarungFlow`  
 **Devpost:** https://openclawagenthon.devpost.com/
 
+**Audit kepatuhan pedoman resmi:** [docs/COMPLIANCE.md](docs/COMPLIANCE.md)
+
+## Kepatuhan AI Agent (wajib panitia)
+
+- [x] **Tool call:** 20 tools di `TOOL_REGISTRY` (`agents/tool_handlers.py`)
+- [x] **Autonomous loop:** `decide_next_action` + `run_agent_stream` (`agents/orchestrator.py`, max 24 langkah)
+- [x] **≥1 task otonom:** load → rekonsiliasi → cashflow → laporan → ekspor tanpa klik manual
+- [x] **Bukan chatbot saja:** inti = agen keuangan; WhatsApp hanya input (`SYNC_BOT_EVENTS`)
+- [x] **Commit dalam sprint:** repo aktif sejak 15 Mei 2026 10:49 WIB (setelah 09:45 WIB)
+- [ ] **Nama repo GitHub:** rename ke `OpenClaw2026_MuhammadAldoFahrezy_WarungFlow` (saat ini `Warung-Flow`)
+
 ## Before 15 Mei 2026, 23:00 WIB
 
-- [ ] Public GitHub repo pushed (no `.env` committed)
+- [ ] Public GitHub repo pushed (no `.env` committed) — **1 commit belum push**
 - [ ] Devpost: project description (use `docs/devpost_submission.md`)
-- [ ] Devpost: GitHub URL — https://github.com/aldofahrezy/Warung-Flow
+- [ ] Devpost: GitHub URL — update setelah rename repo
 - [ ] Devpost: **Best Payment Use Case** track selected
 - [ ] YouTube demo (**Unlisted**, ≤2 min): `OpenClaw2026_MuhammadAldoFahrezy_WarungFlow`
 - [ ] Pitch deck PDF (≤5 slides): `docs/OpenClaw2026_MuhammadAldoFahrezy_WarungFlow.pdf`

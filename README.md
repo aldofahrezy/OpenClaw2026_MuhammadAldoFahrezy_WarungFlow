@@ -29,6 +29,14 @@ WarungFlow is **not a chatbot**. It is a state-driven autonomous agent that:
 
 ---
 
+## Competition compliance
+
+Official technical guidelines mapping: **[docs/COMPLIANCE.md](docs/COMPLIANCE.md)** (tool calls, autonomous loop, submission checklist, Best Payment track).
+
+**Competition naming:** Team `OpenClaw2026_MuhammadAldoFahrezy` · Project `OpenClaw2026_MuhammadAldoFahrezy_WarungFlow` · Video/deck use the same prefix.
+
+---
+
 ## Judge testing (start here)
 
 Detailed step-by-step flows for both payment modes:
