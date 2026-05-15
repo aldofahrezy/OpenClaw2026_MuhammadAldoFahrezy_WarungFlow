@@ -1,0 +1,18 @@
+[
+  {
+    "id": "p1",
+    "amount": 48000,
+    "payer_name": "J. Santoso",
+    "payment_method": "transfer",
+    "reference_note": "Bayar ORD-0001 Joko es kopi",
+    "description": "QRIS transfer"
+  },
+  {
+    "id": "p2",
+    "amount": 50000,
+    "payer_name": "Sari Office",
+    "payment_method": "transfer",
+    "reference_note": "DP catering ORD-0003 Sari",
+    "description": "DP partial"
+  }
+]
